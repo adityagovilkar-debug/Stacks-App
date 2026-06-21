@@ -1,7 +1,7 @@
 // Shared data types for Stacks + the small fixed color palette used for tags
 // and collections.
 
-export type ReadStatus = "unread" | "reading" | "read";
+export type ReadStatus = "unread" | "reading" | "on_hold" | "read";
 export type Ownership = "owned" | "wishlist" | "borrowed" | "lent_out";
 export type BookFormat =
   | "hardcover"
@@ -180,6 +180,7 @@ export interface QuoteInput {
 export const READ_STATUS_LABEL: Record<ReadStatus, string> = {
   unread: "Unread",
   reading: "Reading",
+  on_hold: "On hold",
   read: "Read",
 };
 

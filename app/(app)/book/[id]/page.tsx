@@ -72,13 +72,18 @@ export default function BookDetailPage() {
   const [bookmark, setBookmark] = useState("");
   const [review, setReview] = useState("");
 
+  // Re-sync the bookmark field whenever the saved position changes (e.g. after
+  // logging a session with "now on page"), so it never shows a stale value.
   useEffect(() => {
     if (book) {
       const mark =
         book.format === "audiobook" ? book.audio_position_minutes : book.current_page;
       setBookmark(mark != null ? String(mark) : "");
-      setReview(book.review ?? "");
     }
+  }, [book?.id, book?.current_page, book?.audio_position_minutes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (book) setReview(book.review ?? "");
   }, [book?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <SkeletonList rows={5} />;
@@ -387,6 +392,10 @@ export default function BookDetailPage() {
                 <div className="flex-1">
                   <p className="text-sm font-bold">
                     {format(parseISO(s.happened_on), "EEE, d MMM yyyy")}
+                    <span className="font-normal text-text-muted">
+                      {" · logged "}
+                      {format(parseISO(s.created_at), "h:mm a")}
+                    </span>
                   </p>
                   <p className="text-xs text-text-muted">
                     {s.pages_read} pages

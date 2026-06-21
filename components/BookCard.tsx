@@ -10,7 +10,9 @@ import { readingProgress } from "@/lib/stats";
 import type { Book } from "@/lib/types";
 
 export function BookCard({ book }: { book: Book }) {
-  const progress = book.read_status === "reading" ? readingProgress(book) : null;
+  const inProgress =
+    book.read_status === "reading" || book.read_status === "on_hold";
+  const progress = inProgress ? readingProgress(book) : null;
 
   return (
     <Link href={`/book/${book.id}`} className="group block">
@@ -45,9 +47,21 @@ export function BookCard({ book }: { book: Book }) {
 
         {progress != null ? (
           <div className="pt-1">
-            <ProgressBar percent={progress} height={8} color="var(--color-riso-orange)" />
+            {book.read_status === "on_hold" && (
+              <StatusStamp status="on_hold" className="mb-1" />
+            )}
+            <ProgressBar
+              percent={progress}
+              height={8}
+              color={
+                book.read_status === "on_hold"
+                  ? "var(--color-riso-purple)"
+                  : "var(--color-riso-orange)"
+              }
+            />
             <p className="mt-1 text-[0.65rem] font-semibold text-text-muted">
-              {book.current_page}/{book.page_count} pp · {progress}%
+              {book.page_count ? `${book.current_page ?? 0}/${book.page_count} pp · ` : ""}
+              {progress}%
             </p>
           </div>
         ) : (

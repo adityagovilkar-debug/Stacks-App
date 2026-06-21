@@ -548,7 +548,8 @@ export function useBookSessions(bookId: string | undefined) {
         .from("reading_sessions")
         .select("*")
         .eq("book_id", bookId!)
-        .order("happened_on", { ascending: false });
+        .order("happened_on", { ascending: false })
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as ReadingSession[];
     },
