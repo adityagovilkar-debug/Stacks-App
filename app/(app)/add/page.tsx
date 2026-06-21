@@ -8,9 +8,10 @@ import { ScanLine, Keyboard, Search, Check, Loader2, CopyCheck } from "lucide-re
 import { BookForm } from "@/components/BookForm";
 import { IsbnScanner } from "@/components/IsbnScanner";
 import { BookCover } from "@/components/BookCover";
-import { useAddBook, useBooks } from "@/lib/queries";
+import { useAddBook, useBooks, useTags } from "@/lib/queries";
 import { cleanIsbn, lookupIsbn, searchBooks, type BookLookup } from "@/lib/lookup";
 import { findExisting } from "@/lib/duplicates";
+import { matchGenreTags } from "@/lib/genres";
 import { emptyBookInput, type Book, type BookInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,13 @@ export default function AddPage() {
   const router = useRouter();
   const add = useAddBook();
   const { data: books = [] } = useBooks();
+  const { data: tags = [] } = useTags();
+
+  // Build a BookInput from a lookup, auto-selecting matching genre tags.
+  const toInput = (l: BookLookup): BookInput => ({
+    ...lookupToInput(l),
+    tag_ids: matchGenreTags(l.categories, tags),
+  });
 
   const [mode, setMode] = useState<Mode>("scan");
   const [scanning, setScanning] = useState(true);
@@ -89,11 +97,11 @@ export default function AddPage() {
           toast(`Already on your shelves — skipped “${result.title}”`);
           return;
         }
-        await add.mutateAsync(lookupToInput(result));
+        await add.mutateAsync(toInput(result));
         setAdded((a) => [{ title: result.title, cover: result.cover_url }, ...a].slice(0, 12));
         toast.success(`Added “${result.title}”`);
       } else {
-        setValue(lookupToInput(result));
+        setValue(toInput(result));
         setScanning(false);
         toast.success(`Found “${result.title}” — review & save`);
       }
@@ -122,7 +130,7 @@ export default function AddPage() {
   }
 
   function pickResult(r: BookLookup) {
-    setValue(lookupToInput(r));
+    setValue(toInput(r));
     setResults(null);
   }
 

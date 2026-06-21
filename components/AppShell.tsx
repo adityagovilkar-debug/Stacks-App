@@ -13,6 +13,8 @@ import {
   MapPin,
   Settings,
   BookOpen,
+  Quote,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { LogSessionDialog } from "./LogSessionDialog";
@@ -43,6 +45,8 @@ const NAV: NavItem[] = [
   { href: "/queue", label: "Reading queue", short: "Queue", icon: ListChecks, mobile: true },
   { href: "/log", label: "Reading log", short: "Log", icon: NotebookPen },
   { href: "/stats", label: "Progress", short: "Stats", icon: BarChart3, mobile: true },
+  { href: "/wrapped", label: "Year in review", short: "Wrapped", icon: Sparkles },
+  { href: "/quotes", label: "Commonplace book", short: "Quotes", icon: Quote },
   { href: "/shelf", label: "Shelf map", short: "Shelf", icon: MapPin },
   { href: "/settings", label: "Settings", short: "Settings", icon: Settings },
 ];

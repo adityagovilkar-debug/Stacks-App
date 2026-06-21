@@ -154,6 +154,18 @@ export function BookForm({
               onChange={(e) => set("page_count", num(e.target.value))}
             />
           </div>
+          {value.format === "audiobook" && (
+            <div>
+              <label className="label">Length (min)</label>
+              <input
+                className="input"
+                type="number"
+                value={value.duration_minutes ?? ""}
+                onChange={(e) => set("duration_minutes", num(e.target.value))}
+                placeholder="e.g. 540"
+              />
+            </div>
+          )}
           <div>
             <label className="label">Language</label>
             <input

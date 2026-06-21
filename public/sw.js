@@ -8,6 +8,8 @@ const APP_SHELL = [
   "/queue",
   "/log",
   "/stats",
+  "/wrapped",
+  "/quotes",
   "/shelf",
   "/settings",
   "/manifest.webmanifest",

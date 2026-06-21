@@ -220,8 +220,74 @@ export function heatmap(sessions: ReadingSession[], weeks = 26): HeatCell[][] {
   return cols;
 }
 
-// Progress percent for a book (bookmark page / page count).
+export function isAudiobook(book: Book): boolean {
+  return book.format === "audiobook";
+}
+
+// Progress percent — pages for books, minutes for audiobooks.
 export function readingProgress(book: Book): number | null {
+  if (isAudiobook(book)) {
+    if (!book.duration_minutes || !book.audio_position_minutes) return null;
+    return Math.min(
+      100,
+      Math.round((book.audio_position_minutes / book.duration_minutes) * 100),
+    );
+  }
   if (!book.page_count || !book.current_page) return null;
   return Math.min(100, Math.round((book.current_page / book.page_count) * 100));
+}
+
+// Average pages on the days you actually read, over the last N days.
+export function avgPagesPerActiveDay(
+  sessions: ReadingSession[],
+  days = 30,
+): number | null {
+  const since = subDays(new Date(), days - 1);
+  const byDay = new Map<string, number>();
+  for (const s of sessions) {
+    if (parseISO(s.happened_on) < since) continue;
+    byDay.set(s.happened_on, (byDay.get(s.happened_on) ?? 0) + (s.pages_read || 0));
+  }
+  const vals = [...byDay.values()].filter((v) => v > 0);
+  if (!vals.length) return null;
+  return vals.reduce((n, v) => n + v, 0) / vals.length;
+}
+
+export interface FinishEstimate {
+  minutesLeft: number | null; // wall-clock reading/listening time left
+  daysLeft: number | null; // sittings at your recent daily pace (books only)
+  unitsLeft: number; // pages or minutes remaining
+  isAudio: boolean;
+}
+
+// Estimate how much is left to finish a book the user is reading.
+export function estimateTimeLeft(
+  book: Book,
+  sessions: ReadingSession[],
+): FinishEstimate | null {
+  if (isAudiobook(book)) {
+    if (!book.duration_minutes) return null;
+    const left = Math.max(0, book.duration_minutes - (book.audio_position_minutes ?? 0));
+    return { minutesLeft: left, daysLeft: null, unitsLeft: left, isAudio: true };
+  }
+  if (!book.page_count) return null;
+  const pagesLeft = Math.max(0, book.page_count - (book.current_page ?? 0));
+  if (pagesLeft === 0)
+    return { minutesLeft: 0, daysLeft: 0, unitsLeft: 0, isAudio: false };
+  const speed = readingSpeed(sessions); // pages/hr
+  const minutesLeft = speed ? Math.round((pagesLeft / speed) * 60) : null;
+  const perDay = avgPagesPerActiveDay(sessions);
+  const daysLeft = perDay ? Math.ceil(pagesLeft / perDay) : null;
+  return { minutesLeft, daysLeft, unitsLeft: pagesLeft, isAudio: false };
+}
+
+// Friendly duration: "3h 12m" / "45m" / "2h".
+export function fmtDuration(min: number): string {
+  const total = Math.round(min);
+  if (total < 1) return "0m";
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h <= 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }

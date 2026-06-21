@@ -9,13 +9,14 @@ import {
   ListChecks,
   ArrowRight,
   Sparkles,
+  Quote as QuoteIcon,
 } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StatusStamp } from "@/components/StatusStamp";
 import { SkeletonList } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
-import { useBooks, useProfile, useSessions } from "@/lib/queries";
+import { useBooks, useProfile, useQuotes, useSessions } from "@/lib/queries";
 import { openLogSession } from "@/lib/events";
 import {
   currentStreak,
@@ -24,13 +25,21 @@ import {
   todayISO,
   series,
   readingProgress,
+  estimateTimeLeft,
+  fmtDuration,
 } from "@/lib/stats";
-import type { Book } from "@/lib/types";
+import type { Book, ReadingSession } from "@/lib/types";
 
 export default function DashboardPage() {
   const { data: books = [], isLoading } = useBooks();
   const { data: sessions = [] } = useSessions();
   const { data: profile } = useProfile();
+  const { data: quotes = [] } = useQuotes();
+
+  const randomQuote = useMemo(
+    () => (quotes.length ? quotes[Math.floor(Math.random() * quotes.length)] : null),
+    [quotes],
+  );
 
   const firstName = (profile?.full_name ?? "").split(" ")[0];
   const hour = new Date().getHours();
@@ -147,7 +156,7 @@ export default function DashboardPage() {
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {reading.map((b) => (
-                  <ReadingRow key={b.id} book={b} />
+                  <ReadingRow key={b.id} book={b} sessions={sessions} />
                 ))}
               </div>
             )}
@@ -203,6 +212,22 @@ export default function DashboardPage() {
             </section>
           </div>
 
+          {/* A quote from your commonplace book */}
+          {randomQuote && (
+            <Link href="/quotes" className="card block p-4 transition hover:-translate-y-0.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-riso-purple">
+                <QuoteIcon className="h-4 w-4" /> From your shelves
+              </div>
+              <p className="font-display text-base italic leading-snug">
+                “{randomQuote.text}”
+              </p>
+              <p className="mt-1.5 text-xs font-semibold text-text-muted">
+                — {randomQuote.book?.title}
+                {randomQuote.page ? `, p. ${randomQuote.page}` : ""}
+              </p>
+            </Link>
+          )}
+
           {/* Footer stat */}
           <div className="card halftone flex items-center gap-3 overflow-hidden p-4" style={{ backgroundColor: "var(--color-riso-yellow)" }}>
             <Sparkles className="h-7 w-7 shrink-0 text-[#1a1430]" />
@@ -243,8 +268,13 @@ function StatTile({ icon, value, label }: { icon: React.ReactNode; value: string
   );
 }
 
-function ReadingRow({ book }: { book: Book }) {
+function ReadingRow({ book, sessions }: { book: Book; sessions: ReadingSession[] }) {
   const progress = readingProgress(book);
+  const estimate = estimateTimeLeft(book, sessions);
+  const left =
+    estimate && estimate.unitsLeft > 0 && estimate.minutesLeft != null
+      ? fmtDuration(estimate.minutesLeft)
+      : null;
   return (
     <div className="card flex items-center gap-3 p-3">
       <Link href={`/book/${book.id}`} className="w-12 shrink-0">
@@ -261,7 +291,7 @@ function ReadingRow({ book }: { book: Book }) {
           <div className="mt-1.5">
             <ProgressBar percent={progress} height={8} color="var(--color-riso-orange)" />
             <p className="mt-1 text-[0.65rem] font-semibold text-text-muted">
-              {book.current_page}/{book.page_count} · {progress}%
+              {progress}%{left ? ` · ≈${left} left` : ""}
             </p>
           </div>
         ) : (

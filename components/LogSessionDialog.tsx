@@ -24,6 +24,7 @@ export function LogSessionDialog({
   const [pages, setPages] = useState("");
   const [minutes, setMinutes] = useState("");
   const [endPage, setEndPage] = useState("");
+  const [endPos, setEndPos] = useState("");
   const [note, setNote] = useState("");
   const [showAll, setShowAll] = useState(false);
 
@@ -55,6 +56,7 @@ export function LogSessionDialog({
 
   const hiddenCount = books.length - activeBooks.length;
   const selected = books.find((b) => b.id === bookId);
+  const isAudio = selected?.format === "audiobook";
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +65,7 @@ export function LogSessionDialog({
     setPages("");
     setMinutes("");
     setEndPage("");
+    setEndPos("");
     setNote("");
     setShowAll(false);
   }, [open, initialBook?.id]);
@@ -74,18 +77,30 @@ export function LogSessionDialog({
     const from = selected?.current_page ?? 0;
     if (v && end > from && !pages) setPages(String(end - from));
   }
+  // Audiobook: "now at minute X" auto-fills minutes listened.
+  function onEndPos(v: string) {
+    setEndPos(v);
+    const end = Number(v);
+    const from = selected?.audio_position_minutes ?? 0;
+    if (v && end > from && !minutes) setMinutes(String(end - from));
+  }
 
   async function save() {
     if (!bookId) return toast.error("Pick a book");
-    const p = Number(pages) || 0;
-    if (p <= 0 && !endPage) return toast.error("How many pages did you read?");
+    if (isAudio) {
+      if ((Number(minutes) || 0) <= 0 && !endPos)
+        return toast.error("How many minutes did you listen?");
+    } else if ((Number(pages) || 0) <= 0 && !endPage) {
+      return toast.error("How many pages did you read?");
+    }
     try {
       await log.mutateAsync({
         book_id: bookId,
         happened_on: date,
-        pages_read: p,
+        pages_read: isAudio ? 0 : Number(pages) || 0,
         minutes: minutes ? Number(minutes) : null,
-        end_page: endPage ? Number(endPage) : null,
+        end_page: !isAudio && endPage ? Number(endPage) : null,
+        end_position_minutes: isAudio && endPos ? Number(endPos) : null,
         note: note.trim() || null,
       });
       toast.success("Logged! Keep the streak going 🔥");
@@ -151,43 +166,76 @@ export function LogSessionDialog({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Pages read</label>
-            <input
-              className="input"
-              type="number"
-              inputMode="numeric"
-              value={pages}
-              onChange={(e) => setPages(e.target.value)}
-              placeholder="e.g. 32"
-            />
-          </div>
-          <div>
-            <label className="label">Minutes (optional)</label>
-            <input
-              className="input"
-              type="number"
-              inputMode="numeric"
-              value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
-              placeholder="for speed"
-            />
-          </div>
-          <div>
-            <label className="label">Now on page (optional)</label>
-            <input
-              className="input"
-              type="number"
-              inputMode="numeric"
-              value={endPage}
-              onChange={(e) => onEndPage(e.target.value)}
-              placeholder={
-                selected?.current_page
-                  ? `was ${selected.current_page}`
-                  : "moves your bookmark"
-              }
-            />
-          </div>
+          {isAudio ? (
+            <>
+              <div>
+                <label className="label">Minutes listened</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={minutes}
+                  onChange={(e) => setMinutes(e.target.value)}
+                  placeholder="e.g. 45"
+                />
+              </div>
+              <div>
+                <label className="label">Now at min (optional)</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={endPos}
+                  onChange={(e) => onEndPos(e.target.value)}
+                  placeholder={
+                    selected?.audio_position_minutes
+                      ? `was ${selected.audio_position_minutes}`
+                      : "moves your bookmark"
+                  }
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="label">Pages read</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={pages}
+                  onChange={(e) => setPages(e.target.value)}
+                  placeholder="e.g. 32"
+                />
+              </div>
+              <div>
+                <label className="label">Minutes (optional)</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={minutes}
+                  onChange={(e) => setMinutes(e.target.value)}
+                  placeholder="for speed"
+                />
+              </div>
+              <div>
+                <label className="label">Now on page (optional)</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={endPage}
+                  onChange={(e) => onEndPage(e.target.value)}
+                  placeholder={
+                    selected?.current_page
+                      ? `was ${selected.current_page}`
+                      : "moves your bookmark"
+                  }
+                />
+              </div>
+            </>
+          )}
           <div>
             <label className="label">Date</label>
             <input
@@ -200,7 +248,7 @@ export function LogSessionDialog({
           </div>
         </div>
 
-        {speed != null && (
+        {!isAudio && speed != null && (
           <p className="text-sm font-semibold text-riso-blue">
             That&apos;s ~{speed} pages/hour ⚡
           </p>

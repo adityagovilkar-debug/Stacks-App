@@ -29,13 +29,20 @@ import {
   useLocations,
   usePatchBook,
   useReadAgain,
+  useSessions,
   useSetReadStatus,
   useAddToQueue,
   useRemoveFromQueue,
 } from "@/lib/queries";
 import { buildPathMap } from "@/lib/locations";
 import { openEditBook, openLogSession } from "@/lib/events";
-import { readingProgress } from "@/lib/stats";
+import {
+  readingProgress,
+  estimateTimeLeft,
+  fmtDuration,
+  isAudiobook,
+} from "@/lib/stats";
+import { QuotesSection } from "@/components/QuotesSection";
 import {
   FORMAT_LABEL,
   OWNERSHIP_LABEL,
@@ -51,6 +58,7 @@ export default function BookDetailPage() {
   const id = useParams().id as string;
   const { data: book, isLoading } = useBook(id);
   const { data: sessions = [] } = useBookSessions(id);
+  const { data: allSessions = [] } = useSessions();
   const { data: locations = [] } = useLocations();
 
   const setStatus = useSetReadStatus();
@@ -66,7 +74,9 @@ export default function BookDetailPage() {
 
   useEffect(() => {
     if (book) {
-      setBookmark(book.current_page != null ? String(book.current_page) : "");
+      const mark =
+        book.format === "audiobook" ? book.audio_position_minutes : book.current_page;
+      setBookmark(mark != null ? String(mark) : "");
       setReview(book.review ?? "");
     }
   }, [book?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -83,13 +93,19 @@ export default function BookDetailPage() {
     );
 
   const progress = readingProgress(book);
+  const audio = isAudiobook(book);
+  const estimate =
+    book.read_status === "reading" ? estimateTimeLeft(book, allSessions) : null;
   const locPath = book.location_id
     ? buildPathMap(locations).get(book.location_id)
     : null;
 
   function saveBookmark() {
-    const p = bookmark.trim() === "" ? null : Number(bookmark);
-    patch.mutate({ id: book!.id, patch: { current_page: p } });
+    const v = bookmark.trim() === "" ? null : Number(bookmark);
+    patch.mutate({
+      id: book!.id,
+      patch: audio ? { audio_position_minutes: v } : { current_page: v },
+    });
     toast.success("Bookmark updated");
   }
   function saveReview() {
@@ -221,20 +237,41 @@ export default function BookDetailPage() {
           <div className="mb-3">
             <ProgressBar percent={progress} color="var(--color-riso-orange)" />
             <p className="mt-1.5 text-sm font-semibold text-text-muted">
-              Page {book.current_page} of {book.page_count} · {progress}%
+              {audio
+                ? `${fmtDuration(book.audio_position_minutes ?? 0)} of ${fmtDuration(book.duration_minutes ?? 0)} · ${progress}%`
+                : `Page ${book.current_page} of ${book.page_count} · ${progress}%`}
             </p>
           </div>
         )}
+        {estimate && estimate.unitsLeft > 0 && (
+          <p className="mb-3 flex items-center gap-1.5 text-sm font-bold text-riso-blue">
+            <Clock className="h-4 w-4" />
+            {estimate.minutesLeft != null
+              ? `≈ ${fmtDuration(estimate.minutesLeft)} left`
+              : `${estimate.unitsLeft} pages left`}
+            {estimate.daysLeft
+              ? ` · about ${estimate.daysLeft} ${estimate.daysLeft === 1 ? "sitting" : "sittings"} at your pace`
+              : ""}
+          </p>
+        )}
         <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="label">Current page</label>
+            <label className="label">{audio ? "Current position (min)" : "Current page"}</label>
             <input
               className="input w-32"
               type="number"
               inputMode="numeric"
               value={bookmark}
               onChange={(e) => setBookmark(e.target.value)}
-              placeholder={book.page_count ? `of ${book.page_count}` : "page"}
+              placeholder={
+                audio
+                  ? book.duration_minutes
+                    ? `of ${book.duration_minutes}`
+                    : "minute"
+                  : book.page_count
+                    ? `of ${book.page_count}`
+                    : "page"
+              }
             />
           </div>
           <button className="btn-outline" onClick={saveBookmark}>
@@ -332,6 +369,9 @@ export default function BookDetailPage() {
           Save review
         </button>
       </section>
+
+      {/* Quotes / highlights */}
+      <QuotesSection bookId={book.id} />
 
       {/* Reading sessions */}
       <section className="card p-5">

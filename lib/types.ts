@@ -62,6 +62,7 @@ export interface Book {
   publisher: string | null;
   published_year: number | null;
   page_count: number | null;
+  duration_minutes: number | null; // total length for audiobooks
   language: string | null;
   description: string | null;
   // classification
@@ -82,7 +83,8 @@ export interface Book {
   times_read: number;
   rating: number | null; // 0–5 in 0.5 steps
   favorite: boolean;
-  current_page: number | null; // the bookmark
+  current_page: number | null; // the bookmark (pages)
+  audio_position_minutes: number | null; // the bookmark (audiobooks)
   review: string | null;
   started_on: string | null;
   finished_on: string | null;
@@ -106,6 +108,7 @@ export interface BookInput {
   publisher: string | null;
   published_year: number | null;
   page_count: number | null;
+  duration_minutes: number | null;
   language: string | null;
   description: string | null;
   format: BookFormat | null;
@@ -148,6 +151,26 @@ export interface SessionInput {
   pages_read: number;
   minutes: number | null;
   end_page: number | null;
+  end_position_minutes: number | null; // audiobook "now at" position
+  note: string | null;
+}
+
+export interface Quote {
+  id: string;
+  user_id: string;
+  book_id: string;
+  text: string;
+  page: number | null;
+  note: string | null;
+  created_at: string;
+  // joined
+  book?: Pick<Book, "id" | "title" | "authors" | "cover_url">;
+}
+
+export interface QuoteInput {
+  book_id: string;
+  text: string;
+  page: number | null;
   note: string | null;
 }
 
@@ -226,6 +249,7 @@ export function emptyBookInput(): BookInput {
     publisher: null,
     published_year: null,
     page_count: null,
+    duration_minutes: null,
     language: null,
     description: null,
     format: null,
@@ -259,6 +283,7 @@ export function bookToInput(b: Book): BookInput {
     publisher: b.publisher,
     published_year: b.published_year,
     page_count: b.page_count,
+    duration_minutes: b.duration_minutes,
     language: b.language,
     description: b.description,
     format: b.format,

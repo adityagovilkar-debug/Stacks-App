@@ -15,7 +15,8 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { Flame, Zap, BookCheck, Layers } from "lucide-react";
+import Link from "next/link";
+import { Flame, Zap, BookCheck, Layers, Sparkles } from "lucide-react";
 import { StreakHeatmap } from "@/components/StreakHeatmap";
 import { ProgressBar } from "@/components/ProgressBar";
 import { EmptyState } from "@/components/EmptyState";
@@ -74,11 +75,16 @@ export default function StatsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-3xl font-extrabold misreg">Your progress</h1>
-        <p className="mt-1 text-text-muted">
-          How the habit is coming along, in numbers.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-extrabold misreg">Your progress</h1>
+          <p className="mt-1 text-text-muted">
+            How the habit is coming along, in numbers.
+          </p>
+        </div>
+        <Link href="/wrapped" className="btn-outline">
+          <Sparkles className="h-5 w-5" /> {year} in review
+        </Link>
       </header>
 
       {/* Top stats */}

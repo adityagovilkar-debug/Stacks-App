@@ -14,6 +14,8 @@ import type {
   Collection,
   Location,
   Profile,
+  Quote,
+  QuoteInput,
   ReadStatus,
   ReadingSession,
   SessionInput,
@@ -558,26 +560,38 @@ export function useLogSession() {
   return useMutation({
     mutationFn: async (input: SessionInput) => {
       const user_id = await uid();
+      // end_position_minutes is audiobook-only and not a sessions column.
+      const { end_position_minutes, ...sessionRow } = input;
       const { error } = await sb()
         .from("reading_sessions")
-        .insert({ ...input, user_id });
+        .insert({ ...sessionRow, user_id });
       if (error) throw error;
 
       // Update the book: advance the bookmark + flip to "reading" if needed.
       const { data: book } = await sb()
         .from("books")
-        .select("current_page, read_status, started_on")
+        .select("format, current_page, audio_position_minutes, read_status, started_on")
         .eq("id", input.book_id)
         .maybeSingle();
       if (book) {
         const patch: Record<string, unknown> = {};
-        const newPage =
-          input.end_page != null
-            ? input.end_page
-            : input.pages_read
-              ? (book.current_page ?? 0) + input.pages_read
-              : null;
-        if (newPage != null) patch.current_page = newPage;
+        if (book.format === "audiobook") {
+          const newPos =
+            end_position_minutes != null
+              ? end_position_minutes
+              : input.minutes
+                ? (book.audio_position_minutes ?? 0) + input.minutes
+                : null;
+          if (newPos != null) patch.audio_position_minutes = newPos;
+        } else {
+          const newPage =
+            input.end_page != null
+              ? input.end_page
+              : input.pages_read
+                ? (book.current_page ?? 0) + input.pages_read
+                : null;
+          if (newPage != null) patch.current_page = newPage;
+        }
         if (book.read_status === "unread") {
           patch.read_status = "reading";
           if (!book.started_on) patch.started_on = input.happened_on;
@@ -605,6 +619,70 @@ export function useDeleteSession() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sessions"] });
       qc.invalidateQueries({ queryKey: ["book-sessions"] });
+    },
+  });
+}
+
+// =====================================================================
+// Quotes / highlights (commonplace book)
+// =====================================================================
+const QUOTE_SELECT = "*, book:books(id, title, authors, cover_url)";
+
+export function useQuotes() {
+  return useQuery({
+    queryKey: ["quotes"],
+    queryFn: async (): Promise<Quote[]> => {
+      const { data, error } = await sb()
+        .from("quotes")
+        .select(QUOTE_SELECT)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Quote[];
+    },
+  });
+}
+
+export function useBookQuotes(bookId: string | undefined) {
+  return useQuery({
+    enabled: !!bookId,
+    queryKey: ["book-quotes", bookId],
+    queryFn: async (): Promise<Quote[]> => {
+      const { data, error } = await sb()
+        .from("quotes")
+        .select("*")
+        .eq("book_id", bookId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Quote[];
+    },
+  });
+}
+
+export function useAddQuote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: QuoteInput) => {
+      const user_id = await uid();
+      const { error } = await sb().from("quotes").insert({ ...input, user_id });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["quotes"] });
+      qc.invalidateQueries({ queryKey: ["book-quotes", v.book_id] });
+    },
+  });
+}
+
+export function useDeleteQuote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb().from("quotes").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["quotes"] });
+      qc.invalidateQueries({ queryKey: ["book-quotes"] });
     },
   });
 }
