@@ -11,6 +11,7 @@ import {
   differenceInCalendarDays,
 } from "date-fns";
 import type { Book, ReadingSession } from "./types";
+import { uniqueAuthors } from "./utils";
 
 export const ISO = (d: Date) => format(d, "yyyy-MM-dd");
 export const todayISO = () => ISO(new Date());
@@ -182,8 +183,7 @@ export function ratingDistribution(books: Book[]): { label: string; count: numbe
 export function topAuthors(books: Book[], limit = 8): { name: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const b of books) {
-    for (const a of b.authors ?? []) {
-      if (!a) continue;
+    for (const a of uniqueAuthors(b.authors)) {
       counts.set(a, (counts.get(a) ?? 0) + 1);
     }
   }

@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { todayISO } from "@/lib/stats";
+import { uniqueAuthors } from "@/lib/utils";
 import type {
   Book,
   BookInput,
@@ -243,6 +244,7 @@ const BOOK_SELECT =
 function mapBook(row: any): Book {
   return {
     ...row,
+    authors: uniqueAuthors(row.authors),
     tags: (row.book_tags ?? []).map((bt: any) => bt.tag).filter(Boolean),
     collection_ids: (row.collection_books ?? []).map((cb: any) => cb.collection_id),
     location: row.location ?? null,
@@ -283,7 +285,7 @@ export function useBook(id: string | undefined) {
 // Split BookInput into the plain `books` columns + the two id arrays.
 function splitInput(input: BookInput) {
   const { tag_ids, collection_ids, ...cols } = input;
-  return { cols, tag_ids, collection_ids };
+  return { cols: { ...cols, authors: uniqueAuthors(cols.authors) }, tag_ids, collection_ids };
 }
 
 async function setBookTags(book_id: string, user_id: string, tagIds: string[]) {

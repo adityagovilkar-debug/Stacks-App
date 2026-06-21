@@ -7,6 +7,7 @@ import { Search, SlidersHorizontal, X, BookPlus, Heart } from "lucide-react";
 import { BookCard } from "@/components/BookCard";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonGrid } from "@/components/Skeleton";
+import { DuplicatesNotice } from "@/components/DuplicatesNotice";
 import {
   useBooks,
   useCollections,
@@ -157,6 +158,8 @@ function LibraryInner() {
           <BookPlus className="h-5 w-5" /> Add
         </Link>
       </header>
+
+      {!isLoading && <DuplicatesNotice books={books} />}
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2">
