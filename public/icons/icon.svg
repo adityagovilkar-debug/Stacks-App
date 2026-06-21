@@ -1,0 +1,35 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Risograph book-stack mark. Full-bleed warm paper so it works as both
+       "any" and "maskable"; the OS rounds the corners on the home screen. -->
+  <rect width="512" height="512" fill="#f4ead8"/>
+
+  <!-- faint halftone dots in the corner for print texture -->
+  <g fill="#0b63f6" opacity="0.10">
+    <circle cx="430" cy="70" r="9"/><circle cx="462" cy="70" r="9"/>
+    <circle cx="446" cy="98" r="9"/><circle cx="478" cy="98" r="9"/>
+    <circle cx="430" cy="126" r="9"/><circle cx="462" cy="126" r="9"/>
+  </g>
+
+  <!-- A leaning stack of three book spines, drawn with hard ink outlines and
+       multiply-blended riso inks for the overprint look. -->
+  <g style="mix-blend-mode:multiply">
+    <!-- bottom book (yellow) -->
+    <g transform="rotate(-4 256 360)">
+      <rect x="118" y="330" width="276" height="66" rx="8" fill="#ffd23f" stroke="#171327" stroke-width="14"/>
+      <line x1="118" y1="364" x2="394" y2="364" stroke="#171327" stroke-width="8" opacity="0.5"/>
+    </g>
+    <!-- middle book (pink) -->
+    <g transform="rotate(3 256 268)">
+      <rect x="132" y="236" width="248" height="66" rx="8" fill="#ff4f9a" stroke="#171327" stroke-width="14"/>
+      <line x1="132" y1="270" x2="380" y2="270" stroke="#171327" stroke-width="8" opacity="0.5"/>
+    </g>
+    <!-- top book (blue) -->
+    <g transform="rotate(-2 256 178)">
+      <rect x="150" y="146" width="212" height="64" rx="8" fill="#0b63f6" stroke="#171327" stroke-width="14"/>
+      <line x1="150" y1="178" x2="362" y2="178" stroke="#171327" stroke-width="8" opacity="0.45"/>
+    </g>
+  </g>
+
+  <!-- little bookmark ribbon poking out of the top book -->
+  <path d="M300 116 h34 v74 l-17 -16 -17 16 z" fill="#ff4f9a" stroke="#171327" stroke-width="10" stroke-linejoin="round"/>
+</svg>
