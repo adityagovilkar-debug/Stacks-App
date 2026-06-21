@@ -25,18 +25,35 @@ export function LogSessionDialog({
   const [minutes, setMinutes] = useState("");
   const [endPage, setEndPage] = useState("");
   const [note, setNote] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
-  // Books currently in progress float to the top of the picker.
-  const sorted = useMemo(
+  // Default the picker to what you're actually reading or plan to read next —
+  // books that are "reading" or in your queue (plus the book the dialog was
+  // opened for). "Show all" reveals the rest of the library on demand.
+  const activeBooks = useMemo(
     () =>
-      [...books].sort((a, b) => {
-        const rank = (s: string) =>
-          s === "reading" ? 0 : s === "unread" ? 1 : 2;
-        return rank(a.read_status) - rank(b.read_status);
-      }),
-    [books],
+      books.filter(
+        (b) =>
+          b.read_status === "reading" ||
+          b.queue_position != null ||
+          b.id === initialBook?.id,
+      ),
+    [books, initialBook?.id],
   );
 
+  const options = useMemo(() => {
+    const rank = (b: (typeof books)[number]) =>
+      b.read_status === "reading" ? 0 : b.queue_position != null ? 1 : 2;
+    return [...(showAll ? books : activeBooks)].sort((a, b) => {
+      const r = rank(a) - rank(b);
+      if (r !== 0) return r;
+      if (a.queue_position != null && b.queue_position != null)
+        return a.queue_position - b.queue_position;
+      return a.title.localeCompare(b.title);
+    });
+  }, [books, activeBooks, showAll]);
+
+  const hiddenCount = books.length - activeBooks.length;
   const selected = books.find((b) => b.id === bookId);
 
   useEffect(() => {
@@ -47,6 +64,7 @@ export function LogSessionDialog({
     setMinutes("");
     setEndPage("");
     setNote("");
+    setShowAll(false);
   }, [open, initialBook?.id]);
 
   // When you say "I'm now on page X", auto-fill pages read from the bookmark.
@@ -106,14 +124,30 @@ export function LogSessionDialog({
             value={bookId}
             onChange={(e) => setBookId(e.target.value)}
           >
-            <option value="">— Choose a book —</option>
-            {sorted.map((b) => (
+            <option value="">
+              {options.length ? "— Choose a book —" : "— Nothing reading or queued —"}
+            </option>
+            {options.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.read_status === "reading" ? "● " : ""}
                 {b.title}
+                {b.read_status !== "reading" && b.queue_position != null
+                  ? " · queued"
+                  : ""}
               </option>
             ))}
           </select>
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((s) => !s)}
+              className="mt-1.5 text-xs font-bold text-riso-blue hover:underline"
+            >
+              {showAll
+                ? "Show only reading & queued"
+                : `Show all books (+${hiddenCount})`}
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
