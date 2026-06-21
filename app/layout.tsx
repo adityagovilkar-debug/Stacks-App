@@ -32,7 +32,9 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
-  viewportFit: "cover",
+  // NOTE: intentionally NOT using viewport-fit: "cover" — without safe-area
+  // padding it lets edge UI slip under a phone's notch/rounded corners,
+  // which reads as "a sliver of the UI is hidden / it's zoomed in".
 };
 
 export default function RootLayout({
