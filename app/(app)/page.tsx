@@ -113,7 +113,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Today + stats */}
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="card p-4 sm:col-span-1">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-sm font-bold">Today</span>
@@ -145,7 +145,7 @@ export default function DashboardPage() {
                 .
               </p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {reading.map((b) => (
                   <ReadingRow key={b.id} book={b} />
                 ))}
@@ -154,7 +154,7 @@ export default function DashboardPage() {
           </section>
 
           {/* Up next + recently finished */}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <section>
               <SectionHead title="Up next" href="/queue" />
               {queue.length === 0 ? (
@@ -252,7 +252,9 @@ function ReadingRow({ book }: { book: Book }) {
       </Link>
       <div className="min-w-0 flex-1">
         <Link href={`/book/${book.id}`} className="block">
-          <p className="truncate font-display text-sm font-bold">{book.title}</p>
+          <p className="line-clamp-2 font-display text-sm font-bold leading-tight">
+            {book.title}
+          </p>
           <p className="truncate text-xs text-text-muted">{book.authors.join(", ")}</p>
         </Link>
         {progress != null ? (

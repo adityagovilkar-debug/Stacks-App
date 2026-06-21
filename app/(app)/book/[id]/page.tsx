@@ -244,7 +244,7 @@ export default function BookDetailPage() {
       </section>
 
       {/* Metadata + classification */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <section className="card p-5">
           <h2 className="mb-3 font-display text-lg font-extrabold">Details</h2>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

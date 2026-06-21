@@ -157,7 +157,7 @@ export default function StatsPage() {
         )}
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Reading speed trend */}
         <section className="card p-5">
           <h2 className="mb-3 font-display text-lg font-extrabold">Reading speed trend</h2>
