@@ -7,6 +7,7 @@ import type { Book } from "./types";
 
 export const LOG_SESSION_EVENT = "stacks:log-session";
 export const EDIT_BOOK_EVENT = "stacks:edit-book";
+export const COMMAND_EVENT = "stacks:command";
 
 export interface LogSessionDetail {
   book?: Pick<Book, "id" | "title" | "page_count" | "current_page">;
@@ -25,4 +26,8 @@ export function openEditBook(book?: Book) {
   window.dispatchEvent(
     new CustomEvent<EditBookDetail>(EDIT_BOOK_EVENT, { detail: { book } }),
   );
+}
+
+export function openCommand() {
+  window.dispatchEvent(new CustomEvent(COMMAND_EVENT));
 }

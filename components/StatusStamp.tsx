@@ -5,6 +5,7 @@ const STYLES: Record<ReadStatus, { label: string; cls: string; rot: string }> = 
   read: { label: "Read", cls: "text-riso-blue bg-riso-blue/10", rot: "-rotate-3" },
   reading: { label: "Reading", cls: "text-riso-orange bg-riso-orange/10", rot: "rotate-2" },
   on_hold: { label: "On hold", cls: "text-riso-purple bg-riso-purple/10", rot: "rotate-1" },
+  abandoned: { label: "DNF", cls: "text-riso-pink bg-riso-pink/10 line-through", rot: "-rotate-2" },
   unread: { label: "Unread", cls: "text-text-muted bg-surface-2", rot: "-rotate-2" },
 };
 

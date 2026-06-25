@@ -18,8 +18,10 @@ import type {
   QuoteInput,
   ReadStatus,
   ReadingSession,
+  SavedView,
   SessionInput,
   Tag,
+  ViewQuery,
 } from "@/lib/types";
 
 const sb = supabaseBrowser;
@@ -685,5 +687,54 @@ export function useDeleteQuote() {
       qc.invalidateQueries({ queryKey: ["quotes"] });
       qc.invalidateQueries({ queryKey: ["book-quotes"] });
     },
+  });
+}
+
+// =====================================================================
+// Saved views / smart shelves
+// =====================================================================
+export function useSavedViews() {
+  return useQuery({
+    queryKey: ["saved-views"],
+    queryFn: async (): Promise<SavedView[]> => {
+      const { data, error } = await sb()
+        .from("saved_views")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SavedView[];
+    },
+  });
+}
+
+export function useAddSavedView() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, query }: { name: string; query: ViewQuery }) => {
+      const user_id = await uid();
+      const { data: last } = await sb()
+        .from("saved_views")
+        .select("sort_order")
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const { error } = await sb()
+        .from("saved_views")
+        .insert({ user_id, name, query, sort_order: (last?.sort_order ?? -1) + 1 });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-views"] }),
+  });
+}
+
+export function useDeleteSavedView() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb().from("saved_views").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-views"] }),
   });
 }

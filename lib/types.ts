@@ -1,7 +1,12 @@
 // Shared data types for Stacks + the small fixed color palette used for tags
 // and collections.
 
-export type ReadStatus = "unread" | "reading" | "on_hold" | "read";
+export type ReadStatus =
+  | "unread"
+  | "reading"
+  | "on_hold"
+  | "abandoned"
+  | "read";
 export type Ownership = "owned" | "wishlist" | "borrowed" | "lent_out";
 export type BookFormat =
   | "hardcover"
@@ -174,6 +179,29 @@ export interface QuoteInput {
   note: string | null;
 }
 
+// A serialized library filter combination — the body of a "smart shelf".
+export interface ViewQuery {
+  q?: string;
+  status?: ReadStatus[];
+  ownership?: Ownership[];
+  formats?: BookFormat[];
+  tagIds?: string[];
+  collectionId?: string;
+  locationId?: string;
+  favOnly?: boolean;
+  minRating?: number;
+  sort?: string;
+}
+
+export interface SavedView {
+  id: string;
+  user_id: string;
+  name: string;
+  query: ViewQuery;
+  sort_order: number;
+  created_at: string;
+}
+
 // ---------------------------------------------------------------------
 // Labels for the enums (UI display).
 // ---------------------------------------------------------------------
@@ -181,6 +209,7 @@ export const READ_STATUS_LABEL: Record<ReadStatus, string> = {
   unread: "Unread",
   reading: "Reading",
   on_hold: "On hold",
+  abandoned: "Abandoned",
   read: "Read",
 };
 

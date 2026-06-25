@@ -3,7 +3,8 @@
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X, BookPlus, Heart } from "lucide-react";
+import { toast } from "sonner";
+import { Search, SlidersHorizontal, X, BookPlus, Heart, Bookmark, Save } from "lucide-react";
 import { BookCard } from "@/components/BookCard";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonGrid } from "@/components/Skeleton";
@@ -13,6 +14,9 @@ import {
   useCollections,
   useLocations,
   useTags,
+  useSavedViews,
+  useAddSavedView,
+  useDeleteSavedView,
 } from "@/lib/queries";
 import { locationOptions } from "@/lib/locations";
 import {
@@ -25,6 +29,7 @@ import {
   type Ownership,
   type ReadStatus,
   type TagKind,
+  type ViewQuery,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +65,9 @@ function LibraryInner() {
   const { data: tags = [] } = useTags();
   const { data: collections = [] } = useCollections();
   const { data: locations = [] } = useLocations();
+  const { data: savedViews = [] } = useSavedViews();
+  const addView = useAddSavedView();
+  const delView = useDeleteSavedView();
 
   const [q, setQ] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -140,6 +148,41 @@ function LibraryInner() {
     setLocationId("");
     setFavOnly(false);
     setMinRating(0);
+    setQ("");
+  }
+
+  // Capture / restore the whole filter state as a "smart shelf".
+  function currentQuery(): ViewQuery {
+    return {
+      q: q || undefined,
+      status: [...status],
+      ownership: [...ownership],
+      formats: [...formats],
+      tagIds: [...tagIds],
+      collectionId: collectionId || undefined,
+      locationId: locationId || undefined,
+      favOnly: favOnly || undefined,
+      minRating: minRating || undefined,
+      sort,
+    };
+  }
+  function applyQuery(v: ViewQuery) {
+    setQ(v.q ?? "");
+    setStatus(new Set(v.status ?? []));
+    setOwnership(new Set(v.ownership ?? []));
+    setFormats(new Set(v.formats ?? []));
+    setTagIds(new Set(v.tagIds ?? []));
+    setCollectionId(v.collectionId ?? "");
+    setLocationId(v.locationId ?? "");
+    setFavOnly(v.favOnly ?? false);
+    setMinRating(v.minRating ?? 0);
+    setSort((v.sort as Sort) ?? "added");
+  }
+  async function saveView() {
+    const name = window.prompt("Name this shelf (e.g. “Unread sci-fi”)");
+    if (!name?.trim()) return;
+    await addView.mutateAsync({ name: name.trim(), query: currentQuery() });
+    toast.success(`Saved “${name.trim()}”`);
   }
 
   const kinds: TagKind[] = ["genre", "mood", "theme", "tag"];
@@ -160,6 +203,31 @@ function LibraryInner() {
       </header>
 
       {!isLoading && <DuplicatesNotice books={books} />}
+
+      {/* Smart shelves (saved views) */}
+      {savedViews.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-text-muted">
+            <Bookmark className="h-3.5 w-3.5" /> Shelves
+          </span>
+          {savedViews.map((v) => (
+            <span key={v.id} className="chip">
+              <button onClick={() => applyQuery(v.query)} className="font-bold">
+                {v.name}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete the “${v.name}” shelf?`)) delView.mutate(v.id);
+                }}
+                aria-label="Delete shelf"
+                className="text-text-muted hover:text-riso-pink"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2">
@@ -279,9 +347,14 @@ function LibraryInner() {
               ))}
             </div>
             {activeCount > 0 && (
-              <button className="ml-auto chip border-dashed text-text-muted" onClick={clearAll}>
-                <X className="h-3.5 w-3.5" /> Clear all
-              </button>
+              <div className="ml-auto flex gap-2">
+                <button className="chip border-dashed" onClick={saveView}>
+                  <Save className="h-3.5 w-3.5" /> Save as shelf
+                </button>
+                <button className="chip border-dashed text-text-muted" onClick={clearAll}>
+                  <X className="h-3.5 w-3.5" /> Clear all
+                </button>
+              </div>
             )}
           </div>
         </div>

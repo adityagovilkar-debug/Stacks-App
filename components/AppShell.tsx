@@ -15,14 +15,17 @@ import {
   BookOpen,
   Quote,
   Sparkles,
+  Search,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { LogSessionDialog } from "./LogSessionDialog";
 import { EditBookDialog } from "./EditBookDialog";
+import { CommandPalette } from "./CommandPalette";
 import {
   EDIT_BOOK_EVENT,
   LOG_SESSION_EVENT,
   openLogSession,
+  openCommand,
   type EditBookDetail,
   type LogSessionDetail,
 } from "@/lib/events";
@@ -102,6 +105,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
 
+        <button
+          onClick={openCommand}
+          className="mb-2 flex items-center gap-2 rounded-xl border-2 border-outline bg-surface-2 px-3 py-2 text-sm font-bold text-text-muted transition hover:text-text"
+        >
+          <Search className="h-4 w-4" /> Search
+          <kbd className="ml-auto rounded border border-outline/50 px-1.5 text-[0.65rem]">⌘K</kbd>
+        </button>
+
         <nav className="flex flex-1 flex-col gap-0.5">
           {NAV.map((n) => {
             const active = isActive(n.href);
@@ -141,6 +152,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
           <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={openCommand}
+              aria-label="Search"
+              className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-text"
+            >
+              <Search className="h-5 w-5" />
+            </button>
             <Link
               href="/shelf"
               aria-label="Shelf map"
@@ -215,6 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         book={editBook}
         onClose={() => setEditOpen(false)}
       />
+      <CommandPalette />
     </div>
   );
 }
