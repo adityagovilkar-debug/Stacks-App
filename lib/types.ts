@@ -147,7 +147,7 @@ export interface ReadingSession {
   note: string | null;
   created_at: string;
   // joined
-  book?: Pick<Book, "id" | "title" | "authors" | "cover_url" | "page_count">;
+  book?: Pick<Book, "id" | "title" | "authors" | "cover_url" | "page_count" | "format">;
 }
 
 export interface SessionInput {

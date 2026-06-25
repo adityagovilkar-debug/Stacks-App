@@ -15,6 +15,7 @@ import {
   Bookmark,
   Clock,
   MapPin,
+  Timer as TimerIcon,
 } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { StatusStamp } from "@/components/StatusStamp";
@@ -35,7 +36,7 @@ import {
   useRemoveFromQueue,
 } from "@/lib/queries";
 import { buildPathMap } from "@/lib/locations";
-import { openEditBook, openLogSession } from "@/lib/events";
+import { openEditBook, openLogSession, startTimer } from "@/lib/events";
 import {
   readingProgress,
   estimateTimeLeft,
@@ -213,6 +214,12 @@ export default function BookDetailPage() {
               className="btn-primary"
             >
               <BookOpen className="h-5 w-5" /> Log reading
+            </button>
+            <button
+              onClick={() => startTimer({ id: book.id, title: book.title })}
+              className="btn-outline"
+            >
+              <TimerIcon className="h-5 w-5" /> Start timer
             </button>
             {book.queue_position != null ? (
               <button onClick={() => removeQ.mutate(book.id)} className="btn-outline">

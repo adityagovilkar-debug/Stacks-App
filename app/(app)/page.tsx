@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Sparkles,
   Quote as QuoteIcon,
+  Timer as TimerIcon,
 } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -17,7 +18,7 @@ import { StatusStamp } from "@/components/StatusStamp";
 import { SkeletonList } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { useBooks, useProfile, useQuotes, useSessions } from "@/lib/queries";
-import { openLogSession } from "@/lib/events";
+import { openLogSession, startTimer } from "@/lib/events";
 import {
   currentStreak,
   pagesOn,
@@ -300,13 +301,22 @@ function ReadingRow({ book, sessions }: { book: Book; sessions: ReadingSession[]
           </div>
         )}
       </div>
-      <button
-        onClick={() => openLogSession(book)}
-        className="shrink-0 rounded-lg border-2 border-outline bg-riso-blue p-2 text-white pop-sm"
-        aria-label="Log reading"
-      >
-        <BookOpen className="h-4 w-4" />
-      </button>
+      <div className="flex shrink-0 flex-col gap-1">
+        <button
+          onClick={() => openLogSession(book)}
+          className="rounded-lg border-2 border-outline bg-riso-blue p-2 text-white pop-sm"
+          aria-label="Log reading"
+        >
+          <BookOpen className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => startTimer({ id: book.id, title: book.title })}
+          className="rounded-lg border-2 border-outline bg-surface p-2 text-text"
+          aria-label="Start timer"
+        >
+          <TimerIcon className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }

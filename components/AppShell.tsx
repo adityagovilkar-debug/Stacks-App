@@ -16,6 +16,9 @@ import {
   Quote,
   Sparkles,
   Search,
+  Timer as TimerIcon,
+  Square,
+  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { LogSessionDialog } from "./LogSessionDialog";
@@ -24,10 +27,12 @@ import { CommandPalette } from "./CommandPalette";
 import {
   EDIT_BOOK_EVENT,
   LOG_SESSION_EVENT,
+  TIMER_EVENT,
   openLogSession,
   openCommand,
   type EditBookDetail,
   type LogSessionDetail,
+  type TimerDetail,
 } from "@/lib/events";
 import { useProfile, useUpdateProfile } from "@/lib/queries";
 import { APP_NAME } from "@/lib/brand";
@@ -62,12 +67,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [logOpen, setLogOpen] = useState(false);
   const [logBook, setLogBook] = useState<LogSessionDetail["book"]>(undefined);
+  const [logMinutes, setLogMinutes] = useState<number | undefined>(undefined);
   const [editOpen, setEditOpen] = useState(false);
   const [editBook, setEditBook] = useState<Book | undefined>(undefined);
 
+  // Reading timer (persisted so it survives reloads / navigation).
+  const [timer, setTimer] = useState<{ id: string; title: string; startedAt: number } | null>(null);
+  const [, setTick] = useState(0);
+
   useEffect(() => {
     function onLog(e: Event) {
-      setLogBook((e as CustomEvent<LogSessionDetail>).detail?.book);
+      const d = (e as CustomEvent<LogSessionDetail>).detail;
+      setLogBook(d?.book);
+      setLogMinutes(d?.minutes);
       setLogOpen(true);
     }
     function onEdit(e: Event) {
@@ -82,6 +94,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Restore a running timer + listen for new ones.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("stacks-timer");
+      if (raw) setTimer(JSON.parse(raw));
+    } catch {}
+    function onTimer(e: Event) {
+      const b = (e as CustomEvent<TimerDetail>).detail.book;
+      const t = { id: b.id, title: b.title, startedAt: Date.now() };
+      setTimer(t);
+      try {
+        localStorage.setItem("stacks-timer", JSON.stringify(t));
+      } catch {}
+    }
+    window.addEventListener(TIMER_EVENT, onTimer);
+    return () => window.removeEventListener(TIMER_EVENT, onTimer);
+  }, []);
+
+  // Tick the elapsed display once a second while a timer runs.
+  useEffect(() => {
+    if (!timer) return;
+    const i = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(i);
+  }, [timer]);
+
+  function clearTimer() {
+    setTimer(null);
+    try {
+      localStorage.removeItem("stacks-timer");
+    } catch {}
+  }
+  function stopTimer() {
+    if (!timer) return;
+    const mins = Math.max(1, Math.round((Date.now() - timer.startedAt) / 60000));
+    const book = { id: timer.id, title: timer.title };
+    clearTimer();
+    openLogSession(book, mins);
+  }
+
   // Keep timezone fresh (used by "today" in stats / streaks).
   useEffect(() => {
     if (!profile) return;
@@ -92,6 +143,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const elapsedMs = timer ? Date.now() - timer.startedAt : 0;
+  const elapsed = `${Math.floor(elapsedMs / 60000)}:${String(
+    Math.floor((elapsedMs % 60000) / 1000),
+  ).padStart(2, "0")}`;
 
   return (
     <div className="flex min-h-screen">
@@ -223,9 +279,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
+      {/* Running reading timer */}
+      {timer && (
+        <div className="fixed bottom-24 left-4 z-40 flex items-center gap-2 rounded-full border-[2.5px] border-outline bg-riso-yellow px-3 py-1.5 text-[#1a1430] pop lg:bottom-6">
+          <TimerIcon className="h-4 w-4" />
+          <span className="font-display text-sm font-extrabold tabular-nums">{elapsed}</span>
+          <span className="hidden max-w-[120px] truncate text-xs font-bold sm:inline">
+            {timer.title}
+          </span>
+          <button
+            onClick={stopTimer}
+            className="ml-1 flex items-center gap-1 rounded-full border-2 border-outline bg-[#1a1430] px-2 py-0.5 text-xs font-bold text-white"
+          >
+            <Square className="h-3 w-3 fill-current" /> Stop &amp; log
+          </button>
+          <button
+            onClick={clearTimer}
+            aria-label="Cancel timer"
+            className="text-[#1a1430]/70 hover:text-[#1a1430]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <LogSessionDialog
         open={logOpen}
         initialBook={logBook}
+        initialMinutes={logMinutes}
         onClose={() => setLogOpen(false)}
       />
       <EditBookDialog

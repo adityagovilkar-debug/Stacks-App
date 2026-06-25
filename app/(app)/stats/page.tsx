@@ -25,6 +25,7 @@ import {
   currentStreak,
   longestStreak,
   series,
+  minutesSeries,
   readingSpeed,
   speedTrend,
   booksFinishedByMonth,
@@ -33,8 +34,15 @@ import {
   topAuthors,
   totalPages,
   totalMinutes,
+  pagesByWeekday,
+  bestWeekday,
+  avgSessionMinutes,
+  avgSessionPages,
+  longestSession,
+  fmtDuration,
   type Granularity,
 } from "@/lib/stats";
+import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const RISO = ["#0b63f6", "#ff4f9a", "#ffd23f", "#ff6f3c", "#7b5cff"];
@@ -64,6 +72,16 @@ export default function StatsPage() {
     () => series(sessions, range.days, range.g),
     [sessions, range],
   );
+  const timeSeries = useMemo(
+    () => minutesSeries(sessions, range.days, range.g),
+    [sessions, range],
+  );
+  const weekday = useMemo(() => pagesByWeekday(sessions), [sessions]);
+  const bestDay = useMemo(() => bestWeekday(sessions), [sessions]);
+  const avgMin = useMemo(() => avgSessionMinutes(sessions), [sessions]);
+  const avgPg = useMemo(() => avgSessionPages(sessions), [sessions]);
+  const longestSesh = useMemo(() => longestSession(sessions), [sessions]);
+  const hasAudio = useMemo(() => timeSeries.some((p) => p.audio > 0), [timeSeries]);
   const finished = useMemo(() => booksFinishedByMonth(books), [books]);
   const genres = useMemo(() => genreBreakdown(books).slice(0, 6), [books]);
   const ratings = useMemo(() => ratingDistribution(books), [books]);
@@ -160,6 +178,46 @@ export default function StatsPage() {
           </ResponsiveContainer>
         ) : (
           <p className="text-sm text-text-muted">No reading logged in this range.</p>
+        )}
+      </section>
+
+      {/* Time spent (includes audiobooks) */}
+      <section className="card p-5">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="font-display text-lg font-extrabold">Time spent reading</h2>
+          {hasAudio && (
+            <div className="flex gap-3 text-xs font-semibold">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-riso-blue" /> Print
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-riso-purple" /> Audiobook
+              </span>
+            </div>
+          )}
+        </div>
+        {timeSeries.length > 0 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={timeSeries}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
+              <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} width={36} unit="m" />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--surface)",
+                  border: "2px solid var(--outline)",
+                  borderRadius: 12,
+                }}
+                formatter={(v, n) => [fmtDuration(Number(v)), n === "audio" ? "Audiobook" : "Print"]}
+              />
+              <Bar dataKey="print" stackId="t" fill="#0b63f6" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="audio" stackId="t" fill="#7b5cff" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Log sessions <b>with minutes</b> (or listen to audiobooks) to see your time here.
+          </p>
         )}
       </section>
 
@@ -314,7 +372,68 @@ export default function StatsPage() {
           <EmptyState icon={Layers} title="No authors yet" hint="Add books to see your most-collected authors." />
         )}
       </section>
+
+      {/* Reading patterns */}
+      <section className="card p-5">
+        <h2 className="mb-3 font-display text-lg font-extrabold">Reading patterns</h2>
+        {hasSessions ? (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={weekday}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="short" tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
+                <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} width={30} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--surface)",
+                    border: "2px solid var(--outline)",
+                    borderRadius: 12,
+                  }}
+                  formatter={(v) => [`${v} pages`, "Pages"]}
+                />
+                <Bar dataKey="pages" fill="#ff6f3c" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <ul className="space-y-2 self-center">
+              <Pattern label="Most productive day" value={bestDay ? bestDay.day : "—"} />
+              <Pattern
+                label="Average session"
+                value={
+                  avgMin
+                    ? fmtDuration(avgMin)
+                    : avgPg
+                      ? `${avgPg} pages`
+                      : "—"
+                }
+              />
+              <Pattern
+                label="Longest session"
+                value={
+                  longestSesh
+                    ? longestSesh.minutes
+                      ? `${fmtDuration(longestSesh.minutes)} · ${format(parseISO(longestSesh.happened_on), "d MMM")}`
+                      : `${longestSesh.pages_read} pages · ${format(parseISO(longestSesh.happened_on), "d MMM")}`
+                    : "—"
+                }
+              />
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Log a few sessions and your reading rhythm will show up here.
+          </p>
+        )}
+      </section>
     </div>
+  );
+}
+
+function Pattern({ label, value }: { label: string; value: string }) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-xl border-2 border-outline bg-surface-2 px-3 py-2.5">
+      <span className="text-sm font-semibold text-text-muted">{label}</span>
+      <span className="font-display text-sm font-extrabold">{value}</span>
+    </li>
   );
 }
 

@@ -10,10 +10,12 @@ import type { LogSessionDetail } from "@/lib/events";
 export function LogSessionDialog({
   open,
   initialBook,
+  initialMinutes,
   onClose,
 }: {
   open: boolean;
   initialBook?: LogSessionDetail["book"];
+  initialMinutes?: number;
   onClose: () => void;
 }) {
   const { data: books = [] } = useBooks();
@@ -63,12 +65,12 @@ export function LogSessionDialog({
     setBookId(initialBook?.id ?? "");
     setDate(todayISO());
     setPages("");
-    setMinutes("");
+    setMinutes(initialMinutes ? String(initialMinutes) : "");
     setEndPage("");
     setEndPos("");
     setNote("");
     setShowAll(false);
-  }, [open, initialBook?.id]);
+  }, [open, initialBook?.id, initialMinutes]);
 
   // When you say "I'm now on page X", auto-fill pages read from the bookmark.
   function onEndPage(v: string) {

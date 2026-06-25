@@ -524,7 +524,7 @@ export function useReorderQueue() {
 // Reading sessions (the habit log)
 // =====================================================================
 const SESSION_SELECT =
-  "*, book:books(id, title, authors, cover_url, page_count)";
+  "*, book:books(id, title, authors, cover_url, page_count, format)";
 
 export function useSessions() {
   return useQuery({

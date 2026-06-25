@@ -291,3 +291,89 @@ export function fmtDuration(min: number): string {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
 }
+
+// --- Time-spent series (minutes), split into print vs audiobook -------------
+export interface TimePoint {
+  key: string;
+  label: string;
+  print: number;
+  audio: number;
+}
+export function minutesSeries(
+  sessions: ReadingSession[],
+  days: number,
+  g: Granularity,
+): TimePoint[] {
+  const since = subDays(new Date(), days - 1);
+  const map = new Map<string, TimePoint>();
+  for (const s of sessions) {
+    if (!s.minutes) continue;
+    const d = parseISO(s.happened_on);
+    if (d < since) continue;
+    const b = bucketKey(d, g);
+    const key = ISO(b);
+    const cur = map.get(key) ?? { key, label: bucketLabel(b, g), print: 0, audio: 0 };
+    if (s.book?.format === "audiobook") cur.audio += s.minutes;
+    else cur.print += s.minutes;
+    map.set(key, cur);
+  }
+  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
+// --- Reading patterns ------------------------------------------------------
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+export function pagesByWeekday(
+  sessions: ReadingSession[],
+): { day: string; short: string; pages: number }[] {
+  const totals = new Array(7).fill(0);
+  for (const s of sessions) totals[parseISO(s.happened_on).getDay()] += s.pages_read || 0;
+  // Render Mon-first for a familiar week shape.
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  return order.map((i) => ({
+    day: WEEKDAYS[i],
+    short: WEEKDAYS[i].slice(0, 3),
+    pages: totals[i],
+  }));
+}
+
+export function bestWeekday(sessions: ReadingSession[]): { day: string; pages: number } | null {
+  const rows = pagesByWeekday(sessions);
+  const top = rows.reduce((m, x) => (x.pages > m.pages ? x : m), rows[0]);
+  return top && top.pages > 0 ? { day: top.day, pages: top.pages } : null;
+}
+
+export function avgSessionMinutes(sessions: ReadingSession[]): number | null {
+  const t = sessions.filter((s) => (s.minutes ?? 0) > 0);
+  if (!t.length) return null;
+  return Math.round(t.reduce((n, s) => n + (s.minutes || 0), 0) / t.length);
+}
+
+export function avgSessionPages(sessions: ReadingSession[]): number | null {
+  const t = sessions.filter((s) => s.pages_read > 0);
+  if (!t.length) return null;
+  return Math.round(t.reduce((n, s) => n + s.pages_read, 0) / t.length);
+}
+
+// Longest single session — by minutes if any are timed, else by pages.
+export function longestSession(sessions: ReadingSession[]): ReadingSession | null {
+  const timed = sessions.some((s) => (s.minutes ?? 0) > 0);
+  let best: ReadingSession | null = null;
+  let bestVal = -1;
+  for (const s of sessions) {
+    const v = timed ? s.minutes ?? 0 : s.pages_read;
+    if (v > bestVal) {
+      bestVal = v;
+      best = s;
+    }
+  }
+  return bestVal > 0 ? best : null;
+}
