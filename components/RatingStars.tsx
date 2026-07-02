@@ -13,7 +13,7 @@ export function RatingStars({
   className,
 }: {
   value: number | null;
-  onChange?: (v: number) => void;
+  onChange?: (v: number | null) => void; // null = rating cleared
   size?: number;
   className?: string;
 }) {
@@ -66,7 +66,7 @@ export function RatingStars({
                     type="button"
                     aria-label={`Rate ${v}`}
                     onMouseEnter={() => setHover(v)}
-                    onClick={() => onChange?.(value === v ? 0 : v)}
+                    onClick={() => onChange?.(value === v ? null : v)}
                     className="h-full w-1/2 cursor-pointer"
                   />
                 );

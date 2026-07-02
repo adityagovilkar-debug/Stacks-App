@@ -6,7 +6,7 @@ import { BookCover } from "./BookCover";
 import { StatusStamp } from "./StatusStamp";
 import { RatingStars } from "./RatingStars";
 import { ProgressBar } from "./ProgressBar";
-import { readingProgress } from "@/lib/stats";
+import { readingProgress, isAudiobook, fmtDuration } from "@/lib/stats";
 import type { Book } from "@/lib/types";
 
 export function BookCard({ book }: { book: Book }) {
@@ -60,7 +60,13 @@ export function BookCard({ book }: { book: Book }) {
               }
             />
             <p className="mt-1 text-[0.65rem] font-semibold text-text-muted">
-              {book.page_count ? `${book.current_page ?? 0}/${book.page_count} pp · ` : ""}
+              {isAudiobook(book)
+                ? book.duration_minutes
+                  ? `${fmtDuration(book.audio_position_minutes ?? 0)}/${fmtDuration(book.duration_minutes)} · `
+                  : ""
+                : book.page_count
+                  ? `${book.current_page ?? 0}/${book.page_count} pp · `
+                  : ""}
               {progress}%
             </p>
           </div>

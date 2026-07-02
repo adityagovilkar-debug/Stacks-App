@@ -21,6 +21,14 @@ export function IsbnScanner({
   const lastRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
   const [error, setError] = useState<string | null>(null);
 
+  // Keep the latest callback in a ref so the camera effect doesn't depend on
+  // its identity — otherwise every parent re-render (typing an ISBN, each
+  // batch-mode add) would stop and restart the camera.
+  const onDetectedRef = useRef(onDetected);
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
+
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
@@ -47,7 +55,7 @@ export function IsbnScanner({
             if (code === lastRef.current.code && now - lastRef.current.at < 2500)
               return;
             lastRef.current = { code, at: now };
-            onDetected(code);
+            onDetectedRef.current(code);
           },
         );
         if (cancelled) controls.stop();
@@ -66,7 +74,7 @@ export function IsbnScanner({
       controlsRef.current?.stop();
       controlsRef.current = null;
     };
-  }, [active, onDetected]);
+  }, [active]);
 
   if (error) {
     return (

@@ -32,6 +32,15 @@ export function BookClassificationField({
   ) => void;
 }) {
   const [mode, setMode] = useState<ClassificationSystem>(system ?? "genre");
+
+  // Follow external changes to `system` (e.g. the form was refilled for a
+  // different book) so the toggle never shows a stale mode.
+  const [prevSystem, setPrevSystem] = useState(system);
+  if (system !== prevSystem) {
+    setPrevSystem(system);
+    if (system && system !== mode) setMode(system);
+  }
+
   // For Dewey: which top class is selected (derive from code prefix).
   const deweyClass = code ? code[0] + "00" : "";
 

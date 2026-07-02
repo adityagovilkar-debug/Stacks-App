@@ -422,6 +422,8 @@ export function useSetReadStatus() {
         if (book.times_read < 1) patch.times_read = 1;
         patch.queue_position = null;
       }
+      // A book you gave up on shouldn't linger in the to-read queue.
+      if (status === "abandoned") patch.queue_position = null;
       const { error } = await sb().from("books").update(patch).eq("id", book.id);
       if (error) throw error;
     },
@@ -441,6 +443,7 @@ export function useReadAgain() {
           read_status: "read",
           finished_on: todayISO(),
           current_page: null,
+          audio_position_minutes: null,
         })
         .eq("id", book.id);
       if (error) throw error;

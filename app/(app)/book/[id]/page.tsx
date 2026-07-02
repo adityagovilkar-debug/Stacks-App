@@ -405,11 +405,13 @@ export default function BookDetailPage() {
                     </span>
                   </p>
                   <p className="text-xs text-text-muted">
-                    {s.pages_read} pages
-                    {s.minutes ? ` · ${s.minutes} min` : ""}
-                    {s.minutes && s.pages_read
-                      ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
-                      : ""}
+                    {audio
+                      ? `🎧 ${s.minutes ?? 0} min listened`
+                      : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
+                          s.minutes && s.pages_read
+                            ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
+                            : ""
+                        }`}
                     {s.note ? ` · “${s.note}”` : ""}
                   </p>
                 </div>
@@ -426,7 +428,9 @@ export default function BookDetailPage() {
         )}
         <p className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
           <Clock className="h-3.5 w-3.5" />
-          {sessions.reduce((n, s) => n + s.pages_read, 0)} pages logged across{" "}
+          {audio
+            ? `${sessions.reduce((n, s) => n + (s.minutes || 0), 0)} minutes logged across `
+            : `${sessions.reduce((n, s) => n + s.pages_read, 0)} pages logged across `}
           {sessions.length} sessions
         </p>
       </section>

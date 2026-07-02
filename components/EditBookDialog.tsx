@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog } from "./Dialog";
 import { BookForm } from "./BookForm";
@@ -19,11 +19,17 @@ export function EditBookDialog({
   const add = useAddBook();
   const update = useUpdateBook();
   const [value, setValue] = useState<BookInput>(emptyBookInput());
+  const [syncedFor, setSyncedFor] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setValue(book ? bookToInput(book) : emptyBookInput());
-  }, [open, book]);
+  // Sync the form to the target book *during render* (not in an effect) so
+  // BookForm never mounts showing the previous book's values for a frame —
+  // its internal field state (authors text, classification mode) initializes
+  // from whatever it first sees.
+  const target = open ? (book?.id ?? "new") : null;
+  if (target !== syncedFor) {
+    setSyncedFor(target);
+    if (target) setValue(book ? bookToInput(book) : emptyBookInput());
+  }
 
   async function save() {
     if (!value.title.trim()) return toast.error("A title is required");
@@ -60,7 +66,7 @@ export function EditBookDialog({
         </div>
       }
     >
-      <BookForm value={value} onChange={setValue} />
+      <BookForm key={target ?? "closed"} value={value} onChange={setValue} />
     </Dialog>
   );
 }

@@ -173,7 +173,8 @@ export function genreBreakdown(books: Book[]): { name: string; value: number }[]
 export function ratingDistribution(books: Book[]): { label: string; count: number }[] {
   const buckets = [1, 2, 3, 4, 5].map((n) => ({ label: `${n}★`, count: 0 }));
   for (const b of books) {
-    if (b.rating == null) continue;
+    // 0 (a cleared rating from before nulling was in place) is "unrated" too.
+    if (b.rating == null || b.rating <= 0) continue;
     const idx = Math.min(4, Math.max(0, Math.round(b.rating) - 1));
     buckets[idx].count++;
   }
@@ -197,12 +198,16 @@ export function topAuthors(books: Book[], limit = 8): { name: string; count: num
 export interface HeatCell {
   date: string;
   pages: number;
+  minutes: number; // so audio-only days still show as activity
 }
 // Returns weeks (columns) of 7 days (Mon→Sun) for the contribution-style grid.
 export function heatmap(sessions: ReadingSession[], weeks = 26): HeatCell[][] {
-  const totals = new Map<string, number>();
+  const totals = new Map<string, { pages: number; minutes: number }>();
   for (const s of sessions) {
-    totals.set(s.happened_on, (totals.get(s.happened_on) ?? 0) + (s.pages_read || 0));
+    const cur = totals.get(s.happened_on) ?? { pages: 0, minutes: 0 };
+    cur.pages += s.pages_read || 0;
+    cur.minutes += s.minutes || 0;
+    totals.set(s.happened_on, cur);
   }
   const end = new Date();
   const start = startOfWeek(subDays(end, (weeks - 1) * 7), { weekStartsOn: 1 });
@@ -212,7 +217,8 @@ export function heatmap(sessions: ReadingSession[], weeks = 26): HeatCell[][] {
     const col: HeatCell[] = [];
     for (let d = 0; d < 7; d++) {
       const key = ISO(cursor);
-      col.push({ date: key, pages: totals.get(key) ?? 0 });
+      const t = totals.get(key);
+      col.push({ date: key, pages: t?.pages ?? 0, minutes: t?.minutes ?? 0 });
       cursor.setDate(cursor.getDate() + 1);
     }
     cols.push(col);

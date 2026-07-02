@@ -43,6 +43,21 @@ export function BookForm({
   const { data: collections = [] } = useCollections();
   const [authorsText, setAuthorsText] = useState(value.authors.join(", "));
 
+  // If the authors array is replaced from *outside* this input (a new ISBN
+  // lookup or search pick filled the form), adopt it. Changes that came from
+  // typing here parse back to the same array, so typing is left alone.
+  const joined = value.authors.join(", ");
+  const [prevJoined, setPrevJoined] = useState(joined);
+  if (joined !== prevJoined) {
+    setPrevJoined(joined);
+    const parsed = authorsText
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(", ");
+    if (parsed !== joined) setAuthorsText(joined);
+  }
+
   const set = <K extends keyof BookInput>(key: K, v: BookInput[K]) =>
     onChange({ ...value, [key]: v });
 

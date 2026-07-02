@@ -67,12 +67,22 @@ export default function LogPage() {
         />
       ) : (
         <div className="space-y-6">
-          {grouped.map(([day, items]) => (
+          {grouped.map(([day, items]) => {
+            const dayPages = items.reduce((n, s) => n + s.pages_read, 0);
+            const dayAudioMin = items
+              .filter((s) => s.book?.format === "audiobook")
+              .reduce((n, s) => n + (s.minutes || 0), 0);
+            return (
             <div key={day}>
               <h2 className="mb-2 font-display text-sm font-extrabold uppercase tracking-wide text-text-muted">
                 {dayLabel(day)} ·{" "}
                 <span className="text-riso-blue">
-                  {items.reduce((n, s) => n + s.pages_read, 0)} pages
+                  {[
+                    dayPages > 0 ? `${dayPages} pages` : null,
+                    dayAudioMin > 0 ? `${dayAudioMin} min listened` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "0 pages"}
                 </span>
               </h2>
               <ul className="space-y-2">
@@ -92,11 +102,13 @@ export default function LogPage() {
                         {s.book?.title ?? "Book"}
                       </Link>
                       <p className="text-xs text-text-muted">
-                        {s.pages_read} pages
-                        {s.minutes ? ` · ${s.minutes} min` : ""}
-                        {s.minutes && s.pages_read
-                          ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
-                          : ""}
+                        {s.book?.format === "audiobook"
+                          ? `🎧 ${s.minutes ?? 0} min listened`
+                          : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
+                              s.minutes && s.pages_read
+                                ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
+                                : ""
+                            }`}
                       </p>
                       {s.note && (
                         <p className="mt-0.5 truncate text-xs italic text-text-muted">
@@ -115,7 +127,8 @@ export default function LogPage() {
                 ))}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

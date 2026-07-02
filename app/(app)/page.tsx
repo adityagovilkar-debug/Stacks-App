@@ -52,6 +52,13 @@ export default function DashboardPage() {
   const minsToday = minutesOn(today, sessions);
   const streak = currentStreak(sessions);
   const goalPages = profile?.goal_pages_per_day ?? 25;
+  const goalMinutes = profile?.goal_minutes_per_day ?? 20;
+  // Hitting either goal counts — a day of audiobook listening logs 0 pages
+  // but is absolutely a reading day.
+  const pagePct = (pagesToday / Math.max(1, goalPages)) * 100;
+  const minPct = goalMinutes > 0 ? (minsToday / goalMinutes) * 100 : 0;
+  const todayPct = Math.max(pagePct, minPct);
+  const goalMet = todayPct >= 100;
 
   const year = new Date().getFullYear();
   const booksThisYear = books.filter(
@@ -131,12 +138,12 @@ export default function DashboardPage() {
                   {pagesToday}/{goalPages} pp
                 </span>
               </div>
-              <ProgressBar percent={(pagesToday / Math.max(1, goalPages)) * 100} />
+              <ProgressBar percent={todayPct} />
               <p className="mt-2 text-xs text-text-muted">
                 {minsToday > 0 ? `${minsToday} min · ` : ""}
-                {pagesToday >= goalPages
+                {goalMet
                   ? "Daily goal met! 🎉"
-                  : `${Math.max(0, goalPages - pagesToday)} pages to your goal`}
+                  : `${Math.max(0, goalPages - pagesToday)} pages (or ${Math.max(0, goalMinutes - minsToday)} min) to your goal`}
               </p>
             </div>
             <StatTile icon={<Flame className="h-5 w-5 text-riso-orange" />} value={`${streak}`} label="day streak" />

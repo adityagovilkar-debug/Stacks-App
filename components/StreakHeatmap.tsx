@@ -8,12 +8,14 @@ import { format, parseISO } from "date-fns";
 export function StreakHeatmap({ sessions }: { sessions: ReadingSession[] }) {
   const cols = heatmap(sessions, 26);
 
-  // Color intensity by pages read that day.
-  const level = (pages: number) => {
-    if (pages === 0) return "bg-surface-2";
-    if (pages < 15) return "bg-riso-blue/30";
-    if (pages < 35) return "bg-riso-blue/55";
-    if (pages < 60) return "bg-riso-blue/80";
+  // Color intensity by pages read that day; audio-only days fall back to a
+  // rough page-equivalent (~2 min per page) so they still light up.
+  const level = (pages: number, minutes: number) => {
+    const eq = pages > 0 ? pages : Math.round(minutes / 2);
+    if (eq === 0) return "bg-surface-2";
+    if (eq < 15) return "bg-riso-blue/30";
+    if (eq < 35) return "bg-riso-blue/55";
+    if (eq < 60) return "bg-riso-blue/80";
     return "bg-riso-blue";
   };
 
@@ -25,8 +27,14 @@ export function StreakHeatmap({ sessions }: { sessions: ReadingSession[] }) {
             {col.map((cell) => (
               <div
                 key={cell.date}
-                title={`${format(parseISO(cell.date), "d MMM yyyy")}: ${cell.pages} pages`}
-                className={`h-3 w-3 rounded-[3px] border border-outline/30 ${level(cell.pages)}`}
+                title={`${format(parseISO(cell.date), "d MMM yyyy")}: ${
+                  cell.pages > 0
+                    ? `${cell.pages} pages`
+                    : cell.minutes > 0
+                      ? `${cell.minutes} min`
+                      : "nothing logged"
+                }`}
+                className={`h-3 w-3 rounded-[3px] border border-outline/30 ${level(cell.pages, cell.minutes)}`}
               />
             ))}
           </div>
