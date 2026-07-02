@@ -34,7 +34,7 @@ import {
   topAuthors,
   totalPages,
   totalMinutes,
-  pagesByWeekday,
+  readingByWeekday,
   bestWeekday,
   avgSessionMinutes,
   avgSessionPages,
@@ -76,7 +76,7 @@ export default function StatsPage() {
     () => minutesSeries(sessions, range.days, range.g),
     [sessions, range],
   );
-  const weekday = useMemo(() => pagesByWeekday(sessions), [sessions]);
+  const weekday = useMemo(() => readingByWeekday(sessions), [sessions]);
   const bestDay = useMemo(() => bestWeekday(sessions), [sessions]);
   const avgMin = useMemo(() => avgSessionMinutes(sessions), [sessions]);
   const avgPg = useMemo(() => avgSessionPages(sessions), [sessions]);
@@ -160,7 +160,7 @@ export default function StatsPage() {
             ))}
           </div>
         </div>
-        {pagesSeries.length > 0 ? (
+        {pagesSeries.some((p) => p.pages > 0) ? (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={pagesSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -196,7 +196,7 @@ export default function StatsPage() {
             </div>
           )}
         </div>
-        {timeSeries.length > 0 ? (
+        {timeSeries.some((p) => p.print > 0 || p.audio > 0) ? (
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={timeSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -389,9 +389,16 @@ export default function StatsPage() {
                     border: "2px solid var(--outline)",
                     borderRadius: 12,
                   }}
-                  formatter={(v) => [`${v} pages`, "Pages"]}
+                  formatter={(v, _n, item) => {
+                    const p = item?.payload as { pages: number; minutes: number };
+                    const parts = [
+                      p.pages > 0 ? `${p.pages} pages` : null,
+                      p.minutes > 0 ? `${p.minutes} min listened` : null,
+                    ].filter(Boolean);
+                    return [parts.join(" · ") || "nothing", "Read"];
+                  }}
                 />
-                <Bar dataKey="pages" fill="#ff6f3c" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="units" fill="#ff6f3c" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             <ul className="space-y-2 self-center">

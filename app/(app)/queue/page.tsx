@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ChevronUp, ChevronDown, Play, X, ListChecks } from "lucide-react";
+import { ChevronUp, ChevronDown, Play, X, ListChecks, Dice5 } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonList } from "@/components/Skeleton";
@@ -51,11 +51,16 @@ export default function QueuePage() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="font-display text-3xl font-extrabold misreg">Up next</h1>
-        <p className="mt-1 text-text-muted">
-          Your to-read queue, in the order you&apos;ll tackle them.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-extrabold misreg">Up next</h1>
+          <p className="mt-1 text-text-muted">
+            Your to-read queue, in the order you&apos;ll tackle them.
+          </p>
+        </div>
+        <Link href="/next" className="btn-outline">
+          <Dice5 className="h-5 w-5" /> Surprise me
+        </Link>
       </header>
 
       {isLoading ? (

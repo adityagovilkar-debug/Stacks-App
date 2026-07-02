@@ -2,12 +2,12 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Flame, BookOpen, NotebookPen, Trash2 } from "lucide-react";
+import { Flame, BookOpen, NotebookPen, Trash2, Pencil } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonList } from "@/components/Skeleton";
 import { useSessions, useDeleteSession } from "@/lib/queries";
-import { openLogSession } from "@/lib/events";
+import { openLogSession, openEditSession } from "@/lib/events";
 import { currentStreak, totalPages } from "@/lib/stats";
 import { format, parseISO, isToday, isYesterday } from "date-fns";
 
@@ -116,6 +116,24 @@ export default function LogPage() {
                         </p>
                       )}
                     </div>
+                    <button
+                      onClick={() =>
+                        openEditSession({
+                          id: s.id,
+                          book_id: s.book_id,
+                          book_title: s.book?.title,
+                          happened_on: s.happened_on,
+                          pages_read: s.pages_read,
+                          minutes: s.minutes,
+                          end_page: s.end_page,
+                          note: s.note,
+                        })
+                      }
+                      aria-label="Edit session"
+                      className="rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => del.mutate(s.id)}
                       aria-label="Delete"

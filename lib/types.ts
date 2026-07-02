@@ -179,6 +179,62 @@ export interface QuoteInput {
   note: string | null;
 }
 
+// ---------------------------------------------------------------------
+// Lending ledger — who has a book (or who you borrowed it from).
+// ---------------------------------------------------------------------
+export type LoanDirection = "lent_out" | "borrowed";
+
+export interface Loan {
+  id: string;
+  user_id: string;
+  book_id: string;
+  person: string;
+  direction: LoanDirection;
+  lent_on: string;
+  due_on: string | null;
+  returned_on: string | null;
+  note: string | null;
+  created_at: string;
+  // joined
+  book?: Pick<Book, "id" | "title" | "authors" | "cover_url">;
+}
+
+export interface LoanInput {
+  book_id: string;
+  person: string;
+  direction: LoanDirection;
+  lent_on: string;
+  due_on: string | null;
+  note: string | null;
+}
+
+export const LOAN_DIRECTION_LABEL: Record<LoanDirection, string> = {
+  lent_out: "Lent out",
+  borrowed: "Borrowed",
+};
+
+// ---------------------------------------------------------------------
+// Read-throughs — one per completed read, each with its own rating/review.
+// ---------------------------------------------------------------------
+export interface ReadThrough {
+  id: string;
+  user_id: string;
+  book_id: string;
+  started_on: string | null;
+  finished_on: string | null;
+  rating: number | null;
+  review: string | null;
+  created_at: string;
+}
+
+export interface ReadThroughInput {
+  book_id: string;
+  started_on: string | null;
+  finished_on: string | null;
+  rating: number | null;
+  review: string | null;
+}
+
 // A serialized library filter combination — the body of a "smart shelf".
 export interface ViewQuery {
   q?: string;

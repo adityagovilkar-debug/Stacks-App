@@ -1,41 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, ListChecks } from "lucide-react";
+import { Heart, ListChecks, Check } from "lucide-react";
 import { BookCover } from "./BookCover";
 import { StatusStamp } from "./StatusStamp";
 import { RatingStars } from "./RatingStars";
 import { ProgressBar } from "./ProgressBar";
 import { readingProgress, isAudiobook, fmtDuration } from "@/lib/stats";
+import { cn } from "@/lib/utils";
 import type { Book } from "@/lib/types";
 
-export function BookCard({ book }: { book: Book }) {
+export function BookCard({
+  book,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+}: {
+  book: Book;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) {
   const inProgress =
     book.read_status === "reading" || book.read_status === "on_hold";
   const progress = inProgress ? readingProgress(book) : null;
 
-  return (
-    <Link href={`/book/${book.id}`} className="group block">
+  const cover = (
+    <>
       <div className="relative transition-transform duration-150 group-hover:-translate-y-1">
         <BookCover
           title={book.title}
           authors={book.authors}
           coverUrl={book.cover_url}
-          className="pop-sm transition-shadow group-hover:[box-shadow:var(--shadow-riso)]"
+          className={cn(
+            "pop-sm transition-shadow group-hover:[box-shadow:var(--shadow-riso)]",
+            selectable && selected && "outline outline-4 outline-riso-blue",
+            selectable && !selected && "opacity-80",
+          )}
         />
-        {book.favorite && (
+        {book.favorite && !selectable && (
           <span className="absolute -right-2 -top-2 flex h-7 w-7 rotate-12 items-center justify-center rounded-full border-2 border-outline bg-riso-pink text-white pop-sm">
             <Heart className="h-3.5 w-3.5 fill-white" />
           </span>
         )}
-        {book.queue_position != null && (
+        {book.queue_position != null && !selectable && (
           <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-full border-2 border-outline bg-riso-yellow px-1.5 py-0.5 text-[0.62rem] font-extrabold text-[#1a1430]">
             <ListChecks className="h-3 w-3" /> Queued
           </span>
         )}
+        {selectable && (
+          <span
+            className={cn(
+              "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-outline",
+              selected ? "bg-riso-blue text-white" : "bg-surface/90 text-transparent",
+            )}
+          >
+            <Check className="h-4 w-4" strokeWidth={3} />
+          </span>
+        )}
       </div>
 
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 space-y-1 text-left">
         <h3 className="font-display text-sm font-bold leading-tight line-clamp-2">
           {book.title}
         </h3>
@@ -79,6 +104,20 @@ export function BookCard({ book }: { book: Book }) {
           </div>
         )}
       </div>
+    </>
+  );
+
+  // In select mode the card is a toggle button, not a link.
+  if (selectable) {
+    return (
+      <button type="button" onClick={onToggleSelect} className="group block w-full">
+        {cover}
+      </button>
+    );
+  }
+  return (
+    <Link href={`/book/${book.id}`} className="group block">
+      {cover}
     </Link>
   );
 }

@@ -6,6 +6,7 @@ import { Sparkles, BookOpen, Zap, Trophy, Ruler, Star } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { RatingStars } from "@/components/RatingStars";
 import { EmptyState } from "@/components/EmptyState";
+import { WrappedShareCard } from "@/components/WrappedShareCard";
 import { useBooks, useSessions } from "@/lib/queries";
 import { availableYears, wrappedStats } from "@/lib/wrapped";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,9 @@ export default function WrappedPage() {
               {w.booksFinished === 1 ? "book finished" : "books finished"} in {year}
             </p>
           </section>
+
+          {/* Share card */}
+          <WrappedShareCard year={year} w={w} />
 
           {/* Stat grid */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

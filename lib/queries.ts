@@ -12,11 +12,15 @@ import type {
   Book,
   BookInput,
   Collection,
+  Loan,
+  LoanInput,
   Location,
   Profile,
   Quote,
   QuoteInput,
   ReadStatus,
+  ReadThrough,
+  ReadThroughInput,
   ReadingSession,
   SavedView,
   SessionInput,
@@ -416,18 +420,39 @@ export function useSetReadStatus() {
     mutationFn: async ({ book, status }: { book: Book; status: ReadStatus }) => {
       const patch: Partial<Book> = { read_status: status };
       const today = todayISO();
+      let firstRead = false;
       if (status === "reading" && !book.started_on) patch.started_on = today;
       if (status === "read") {
         if (!book.finished_on) patch.finished_on = today;
-        if (book.times_read < 1) patch.times_read = 1;
+        if (book.times_read < 1) {
+          patch.times_read = 1;
+          firstRead = true;
+        }
         patch.queue_position = null;
       }
       // A book you gave up on shouldn't linger in the to-read queue.
       if (status === "abandoned") patch.queue_position = null;
       const { error } = await sb().from("books").update(patch).eq("id", book.id);
       if (error) throw error;
+
+      // Record the first completed read as a read-through so it has its own
+      // dated rating/review in the history.
+      if (firstRead) {
+        const user_id = await uid();
+        await sb().from("read_throughs").insert({
+          user_id,
+          book_id: book.id,
+          started_on: book.started_on,
+          finished_on: book.finished_on ?? today,
+          rating: book.rating,
+          review: book.review,
+        });
+      }
     },
-    onSuccess: (_d, v) => invalidateBooks(qc, v.book.id),
+    onSuccess: (_d, v) => {
+      invalidateBooks(qc, v.book.id);
+      qc.invalidateQueries({ queryKey: ["read-throughs", v.book.id] });
+    },
   });
 }
 
@@ -436,19 +461,32 @@ export function useReadAgain() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (book: Book) => {
+      const user_id = await uid();
+      const today = todayISO();
       const { error } = await sb()
         .from("books")
         .update({
           times_read: book.times_read + 1,
           read_status: "read",
-          finished_on: todayISO(),
+          finished_on: today,
           current_page: null,
           audio_position_minutes: null,
         })
         .eq("id", book.id);
       if (error) throw error;
+      // A fresh, blank read-through for this new read — rate/review it later.
+      await sb().from("read_throughs").insert({
+        user_id,
+        book_id: book.id,
+        finished_on: today,
+        rating: null,
+        review: null,
+      });
     },
-    onSuccess: (_d, b) => invalidateBooks(qc, b.id),
+    onSuccess: (_d, b) => {
+      invalidateBooks(qc, b.id);
+      qc.invalidateQueries({ queryKey: ["read-throughs", b.id] });
+    },
   });
 }
 
@@ -615,16 +653,91 @@ export function useLogSession() {
   });
 }
 
+// Recompute a book's bookmark from its remaining sessions. Used after a
+// session is edited or deleted so the "where you left off" position reflects
+// what's actually logged: the furthest end_page (or, if none recorded an
+// absolute page, the cumulative pages read); audiobooks use cumulative
+// minutes. No sessions left → clear the bookmark.
+async function recomputeBookmark(bookId: string) {
+  const { data: book } = await sb()
+    .from("books")
+    .select("format, page_count, duration_minutes")
+    .eq("id", bookId)
+    .maybeSingle();
+  if (!book) return;
+  const { data: rows } = await sb()
+    .from("reading_sessions")
+    .select("pages_read, minutes, end_page")
+    .eq("book_id", bookId);
+  const sessions = rows ?? [];
+
+  if (book.format === "audiobook") {
+    let pos: number | null = null;
+    if (sessions.length) {
+      const total = sessions.reduce((n, s) => n + (s.minutes || 0), 0);
+      pos = book.duration_minutes ? Math.min(total, book.duration_minutes) : total;
+    }
+    await sb().from("books").update({ audio_position_minutes: pos }).eq("id", bookId);
+  } else {
+    let page: number | null = null;
+    const withEnd = sessions.filter((s) => s.end_page != null);
+    if (withEnd.length) page = Math.max(...withEnd.map((s) => s.end_page as number));
+    else if (sessions.length)
+      page = sessions.reduce((n, s) => n + (s.pages_read || 0), 0);
+    if (page != null && book.page_count) page = Math.min(page, book.page_count);
+    await sb().from("books").update({ current_page: page }).eq("id", bookId);
+  }
+}
+
+// Edit a logged session in place. Leaves the bookmark alone unless the change
+// touched pages/end_page, in which case it's recomputed from all sessions.
+export function useUpdateSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      book_id,
+      patch,
+    }: {
+      id: string;
+      book_id: string;
+      patch: Partial<Pick<ReadingSession, "happened_on" | "pages_read" | "minutes" | "end_page" | "note">>;
+    }) => {
+      const { error } = await sb().from("reading_sessions").update(patch).eq("id", id);
+      if (error) throw error;
+      if ("pages_read" in patch || "end_page" in patch || "minutes" in patch) {
+        await recomputeBookmark(book_id);
+      }
+      return book_id;
+    },
+    onSuccess: (book_id) => {
+      qc.invalidateQueries({ queryKey: ["sessions"] });
+      qc.invalidateQueries({ queryKey: ["book-sessions", book_id] });
+      invalidateBooks(qc, book_id);
+    },
+  });
+}
+
 export function useDeleteSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Grab the book first so we can roll its bookmark back afterwards.
+      const { data: sess } = await sb()
+        .from("reading_sessions")
+        .select("book_id")
+        .eq("id", id)
+        .maybeSingle();
       const { error } = await sb().from("reading_sessions").delete().eq("id", id);
       if (error) throw error;
+      const bookId = sess?.book_id as string | undefined;
+      if (bookId) await recomputeBookmark(bookId);
+      return bookId;
     },
-    onSuccess: () => {
+    onSuccess: (bookId) => {
       qc.invalidateQueries({ queryKey: ["sessions"] });
       qc.invalidateQueries({ queryKey: ["book-sessions"] });
+      invalidateBooks(qc, bookId);
     },
   });
 }
@@ -739,5 +852,178 @@ export function useDeleteSavedView() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-views"] }),
+  });
+}
+
+// =====================================================================
+// Loans (lending ledger)
+// =====================================================================
+const LOAN_SELECT = "*, book:books(id, title, authors, cover_url)";
+
+// All loans (for the ledger page), active first, then most recent.
+export function useLoans() {
+  return useQuery({
+    queryKey: ["loans"],
+    queryFn: async (): Promise<Loan[]> => {
+      const { data, error } = await sb()
+        .from("loans")
+        .select(LOAN_SELECT)
+        .order("returned_on", { ascending: true, nullsFirst: true })
+        .order("lent_on", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Loan[];
+    },
+  });
+}
+
+export function useBookLoans(bookId: string | undefined) {
+  return useQuery({
+    enabled: !!bookId,
+    queryKey: ["book-loans", bookId],
+    queryFn: async (): Promise<Loan[]> => {
+      const { data, error } = await sb()
+        .from("loans")
+        .select("*")
+        .eq("book_id", bookId!)
+        .order("lent_on", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Loan[];
+    },
+  });
+}
+
+function invalidateLoans(qc: ReturnType<typeof useQueryClient>, bookId?: string) {
+  qc.invalidateQueries({ queryKey: ["loans"] });
+  if (bookId) qc.invalidateQueries({ queryKey: ["book-loans", bookId] });
+  invalidateBooks(qc, bookId);
+}
+
+// Create a loan and reflect it on the book's ownership.
+export function useAddLoan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: LoanInput) => {
+      const user_id = await uid();
+      const { error } = await sb().from("loans").insert({ ...input, user_id });
+      if (error) throw error;
+      await sb()
+        .from("books")
+        .update({ ownership: input.direction })
+        .eq("id", input.book_id);
+    },
+    onSuccess: (_d, v) => invalidateLoans(qc, v.book_id),
+  });
+}
+
+// Mark a loan returned; restore ownership to "owned" when it was lent out.
+export function useReturnLoan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (loan: Loan) => {
+      const { error } = await sb()
+        .from("loans")
+        .update({ returned_on: todayISO() })
+        .eq("id", loan.id);
+      if (error) throw error;
+      if (loan.direction === "lent_out") {
+        await sb().from("books").update({ ownership: "owned" }).eq("id", loan.book_id);
+      }
+    },
+    onSuccess: (_d, loan) => invalidateLoans(qc, loan.book_id),
+  });
+}
+
+export function useDeleteLoan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (loan: Loan) => {
+      const { error } = await sb().from("loans").delete().eq("id", loan.id);
+      if (error) throw error;
+      return loan.book_id;
+    },
+    onSuccess: (bookId) => invalidateLoans(qc, bookId),
+  });
+}
+
+// =====================================================================
+// Read-throughs (per-read history)
+// =====================================================================
+export function useReadThroughs(bookId: string | undefined) {
+  return useQuery({
+    enabled: !!bookId,
+    queryKey: ["read-throughs", bookId],
+    queryFn: async (): Promise<ReadThrough[]> => {
+      const { data, error } = await sb()
+        .from("read_throughs")
+        .select("*")
+        .eq("book_id", bookId!)
+        .order("finished_on", { ascending: false, nullsFirst: true })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ReadThrough[];
+    },
+  });
+}
+
+// Keep books.times_read in step with the number of read-throughs.
+async function syncTimesRead(bookId: string) {
+  const { count } = await sb()
+    .from("read_throughs")
+    .select("id", { count: "exact", head: true })
+    .eq("book_id", bookId);
+  await sb().from("books").update({ times_read: count ?? 0 }).eq("id", bookId);
+}
+
+export function useAddReadThrough() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ReadThroughInput) => {
+      const user_id = await uid();
+      const { error } = await sb().from("read_throughs").insert({ ...input, user_id });
+      if (error) throw error;
+      await syncTimesRead(input.book_id);
+      return input.book_id;
+    },
+    onSuccess: (bookId) => {
+      qc.invalidateQueries({ queryKey: ["read-throughs", bookId] });
+      invalidateBooks(qc, bookId);
+    },
+  });
+}
+
+export function useUpdateReadThrough() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      book_id,
+      patch,
+    }: {
+      id: string;
+      book_id: string;
+      patch: Partial<ReadThroughInput>;
+    }) => {
+      const { error } = await sb().from("read_throughs").update(patch).eq("id", id);
+      if (error) throw error;
+      return book_id;
+    },
+    onSuccess: (bookId) =>
+      qc.invalidateQueries({ queryKey: ["read-throughs", bookId] }),
+  });
+}
+
+export function useDeleteReadThrough() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, book_id }: { id: string; book_id: string }) => {
+      const { error } = await sb().from("read_throughs").delete().eq("id", id);
+      if (error) throw error;
+      await syncTimesRead(book_id);
+      return book_id;
+    },
+    onSuccess: (bookId) => {
+      qc.invalidateQueries({ queryKey: ["read-throughs", bookId] });
+      invalidateBooks(qc, bookId);
+    },
   });
 }

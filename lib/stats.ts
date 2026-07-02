@@ -6,6 +6,8 @@ import {
   format,
   parseISO,
   subDays,
+  addDays,
+  addMonths,
   startOfWeek,
   startOfMonth,
   differenceInCalendarDays,
@@ -88,26 +90,39 @@ function bucketLabel(d: Date, g: Granularity): string {
   return format(d, "d MMM");
 }
 
-// Pages + minutes per bucket across the last `days` days.
+// Every bucket ({key,label}) spanning the last `days` days, oldest→newest, so
+// charts show empty periods as zero-height bars instead of silently dropping
+// them (a quiet week should read as a quiet week, not compress the axis).
+function enumerateBuckets(days: number, g: Granularity): { key: string; label: string }[] {
+  let cur = bucketKey(subDays(new Date(), days - 1), g);
+  const end = bucketKey(new Date(), g);
+  const out: { key: string; label: string }[] = [];
+  let guard = 0;
+  while (cur.getTime() <= end.getTime() && guard++ < 400) {
+    out.push({ key: ISO(cur), label: bucketLabel(cur, g) });
+    cur = g === "month" ? addMonths(cur, 1) : addDays(cur, g === "week" ? 7 : 1);
+  }
+  return out;
+}
+
+// Pages + minutes per bucket across the last `days` days (zero-filled).
 export function series(
   sessions: ReadingSession[],
   days: number,
   g: Granularity,
 ): SeriesPoint[] {
-  const since = subDays(new Date(), days - 1);
-  const map = new Map<string, SeriesPoint>();
+  const buckets = enumerateBuckets(days, g);
+  const map = new Map<string, SeriesPoint>(
+    buckets.map((b) => [b.key, { ...b, pages: 0, minutes: 0 }]),
+  );
   for (const s of sessions) {
-    const d = parseISO(s.happened_on);
-    if (d < since) continue;
-    const b = bucketKey(d, g);
-    const key = ISO(b);
-    const cur =
-      map.get(key) ?? { key, label: bucketLabel(b, g), pages: 0, minutes: 0 };
+    const key = ISO(bucketKey(parseISO(s.happened_on), g));
+    const cur = map.get(key);
+    if (!cur) continue; // outside the range
     cur.pages += s.pages_read || 0;
     cur.minutes += s.minutes || 0;
-    map.set(key, cur);
   }
-  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+  return buckets.map((b) => map.get(b.key)!);
 }
 
 // --- Reading speed ---------------------------------------------------------
@@ -310,20 +325,18 @@ export function minutesSeries(
   days: number,
   g: Granularity,
 ): TimePoint[] {
-  const since = subDays(new Date(), days - 1);
-  const map = new Map<string, TimePoint>();
+  const buckets = enumerateBuckets(days, g);
+  const map = new Map<string, TimePoint>(
+    buckets.map((b) => [b.key, { ...b, print: 0, audio: 0 }]),
+  );
   for (const s of sessions) {
     if (!s.minutes) continue;
-    const d = parseISO(s.happened_on);
-    if (d < since) continue;
-    const b = bucketKey(d, g);
-    const key = ISO(b);
-    const cur = map.get(key) ?? { key, label: bucketLabel(b, g), print: 0, audio: 0 };
+    const cur = map.get(ISO(bucketKey(parseISO(s.happened_on), g)));
+    if (!cur) continue;
     if (s.book?.format === "audiobook") cur.audio += s.minutes;
     else cur.print += s.minutes;
-    map.set(key, cur);
   }
-  return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+  return buckets.map((b) => map.get(b.key)!);
 }
 
 // --- Reading patterns ------------------------------------------------------
@@ -337,24 +350,37 @@ const WEEKDAYS = [
   "Saturday",
 ];
 
-export function pagesByWeekday(
-  sessions: ReadingSession[],
-): { day: string; short: string; pages: number }[] {
-  const totals = new Array(7).fill(0);
-  for (const s of sessions) totals[parseISO(s.happened_on).getDay()] += s.pages_read || 0;
+export interface WeekdayPoint {
+  day: string;
+  short: string;
+  pages: number;
+  minutes: number; // audiobook minutes
+  units: number; // pages + audio-minute-equivalent (~2 min/page), for ranking
+}
+
+export function readingByWeekday(sessions: ReadingSession[]): WeekdayPoint[] {
+  const pages = new Array(7).fill(0);
+  const minutes = new Array(7).fill(0);
+  for (const s of sessions) {
+    const d = parseISO(s.happened_on).getDay();
+    if (s.book?.format === "audiobook") minutes[d] += s.minutes || 0;
+    else pages[d] += s.pages_read || 0;
+  }
   // Render Mon-first for a familiar week shape.
   const order = [1, 2, 3, 4, 5, 6, 0];
   return order.map((i) => ({
     day: WEEKDAYS[i],
     short: WEEKDAYS[i].slice(0, 3),
-    pages: totals[i],
+    pages: pages[i],
+    minutes: minutes[i],
+    units: pages[i] + Math.round(minutes[i] / 2),
   }));
 }
 
-export function bestWeekday(sessions: ReadingSession[]): { day: string; pages: number } | null {
-  const rows = pagesByWeekday(sessions);
-  const top = rows.reduce((m, x) => (x.pages > m.pages ? x : m), rows[0]);
-  return top && top.pages > 0 ? { day: top.day, pages: top.pages } : null;
+export function bestWeekday(sessions: ReadingSession[]): { day: string; units: number } | null {
+  const rows = readingByWeekday(sessions);
+  const top = rows.reduce((m, x) => (x.units > m.units ? x : m), rows[0]);
+  return top && top.units > 0 ? { day: top.day, units: top.units } : null;
 }
 
 export function avgSessionMinutes(sessions: ReadingSession[]): number | null {

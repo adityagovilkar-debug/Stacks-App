@@ -3,23 +3,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Dialog } from "./Dialog";
-import { useBooks, useLogSession } from "@/lib/queries";
+import { useBooks, useLogSession, useUpdateSession } from "@/lib/queries";
 import { todayISO } from "@/lib/stats";
-import type { LogSessionDetail } from "@/lib/events";
+import type { EditableSession, LogSessionDetail } from "@/lib/events";
 
 export function LogSessionDialog({
   open,
   initialBook,
   initialMinutes,
+  editSession,
   onClose,
 }: {
   open: boolean;
   initialBook?: LogSessionDetail["book"];
   initialMinutes?: number;
+  editSession?: EditableSession;
   onClose: () => void;
 }) {
   const { data: books = [] } = useBooks();
   const log = useLogSession();
+  const update = useUpdateSession();
+  const isEditing = !!editSession;
 
   const [bookId, setBookId] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -62,6 +66,17 @@ export function LogSessionDialog({
 
   useEffect(() => {
     if (!open) return;
+    if (editSession) {
+      setBookId(editSession.book_id);
+      setDate(editSession.happened_on);
+      setPages(editSession.pages_read ? String(editSession.pages_read) : "");
+      setMinutes(editSession.minutes != null ? String(editSession.minutes) : "");
+      setEndPage(editSession.end_page != null ? String(editSession.end_page) : "");
+      setEndPos("");
+      setNote(editSession.note ?? "");
+      setShowAll(false);
+      return;
+    }
     setBookId(initialBook?.id ?? "");
     setDate(todayISO());
     setPages("");
@@ -70,7 +85,7 @@ export function LogSessionDialog({
     setEndPos("");
     setNote("");
     setShowAll(false);
-  }, [open, initialBook?.id, initialMinutes]);
+  }, [open, initialBook?.id, initialMinutes, editSession]);
 
   // When you say "I'm now on page X", auto-fill pages read from the bookmark.
   function onEndPage(v: string) {
@@ -96,6 +111,22 @@ export function LogSessionDialog({
       return toast.error("How many pages did you read?");
     }
     try {
+      if (isEditing) {
+        await update.mutateAsync({
+          id: editSession!.id,
+          book_id: bookId,
+          patch: {
+            happened_on: date,
+            pages_read: isAudio ? 0 : Number(pages) || 0,
+            minutes: minutes ? Number(minutes) : null,
+            end_page: !isAudio && endPage ? Number(endPage) : null,
+            note: note.trim() || null,
+          },
+        });
+        toast.success("Session updated");
+        onClose();
+        return;
+      }
       await log.mutateAsync({
         book_id: bookId,
         happened_on: date,
@@ -121,14 +152,22 @@ export function LogSessionDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Log a reading session"
+      title={isEditing ? "Edit reading session" : "Log a reading session"}
       footer={
         <div className="flex gap-2">
           <button className="btn-ghost flex-1" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-primary flex-1" onClick={save} disabled={log.isPending}>
-            {log.isPending ? "Saving…" : "Log it"}
+          <button
+            className="btn-primary flex-1"
+            onClick={save}
+            disabled={log.isPending || update.isPending}
+          >
+            {log.isPending || update.isPending
+              ? "Saving…"
+              : isEditing
+                ? "Save changes"
+                : "Log it"}
           </button>
         </div>
       }
@@ -140,6 +179,7 @@ export function LogSessionDialog({
             className="select"
             value={bookId}
             onChange={(e) => setBookId(e.target.value)}
+            disabled={isEditing}
           >
             <option value="">
               {options.length ? "— Choose a book —" : "— Nothing reading or queued —"}
@@ -154,7 +194,7 @@ export function LogSessionDialog({
               </option>
             ))}
           </select>
-          {hiddenCount > 0 && (
+          {!isEditing && hiddenCount > 0 && (
             <button
               type="button"
               onClick={() => setShowAll((s) => !s)}
@@ -181,21 +221,23 @@ export function LogSessionDialog({
                   placeholder="e.g. 45"
                 />
               </div>
-              <div>
-                <label className="label">Now at min (optional)</label>
-                <input
-                  className="input"
-                  type="number"
-                  inputMode="numeric"
-                  value={endPos}
-                  onChange={(e) => onEndPos(e.target.value)}
-                  placeholder={
-                    selected?.audio_position_minutes
-                      ? `was ${selected.audio_position_minutes}`
-                      : "moves your bookmark"
-                  }
-                />
-              </div>
+              {!isEditing && (
+                <div>
+                  <label className="label">Now at min (optional)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    value={endPos}
+                    onChange={(e) => onEndPos(e.target.value)}
+                    placeholder={
+                      selected?.audio_position_minutes
+                        ? `was ${selected.audio_position_minutes}`
+                        : "moves your bookmark"
+                    }
+                  />
+                </div>
+              )}
             </>
           ) : (
             <>

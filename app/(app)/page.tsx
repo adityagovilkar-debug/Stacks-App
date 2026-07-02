@@ -179,6 +179,10 @@ export default function DashboardPage() {
                   Your queue is empty.{" "}
                   <Link href="/library" className="font-bold text-riso-blue">
                     Queue a few books
+                  </Link>{" "}
+                  or{" "}
+                  <Link href="/next" className="font-bold text-riso-blue">
+                    let us pick one
                   </Link>
                   .
                 </p>

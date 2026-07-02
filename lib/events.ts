@@ -10,9 +10,20 @@ export const EDIT_BOOK_EVENT = "stacks:edit-book";
 export const COMMAND_EVENT = "stacks:command";
 export const TIMER_EVENT = "stacks:timer";
 
+export interface EditableSession {
+  id: string;
+  book_id: string;
+  book_title?: string;
+  happened_on: string;
+  pages_read: number;
+  minutes: number | null;
+  end_page: number | null;
+  note: string | null;
+}
 export interface LogSessionDetail {
   book?: { id: string; title: string };
   minutes?: number; // pre-fill (e.g. from the reading timer)
+  editSession?: EditableSession; // present = edit an existing session
 }
 export interface EditBookDetail {
   book?: Book; // present = edit existing, absent = blank (rare; use /add)
@@ -24,6 +35,12 @@ export interface TimerDetail {
 export function openLogSession(book?: LogSessionDetail["book"], minutes?: number) {
   window.dispatchEvent(
     new CustomEvent<LogSessionDetail>(LOG_SESSION_EVENT, { detail: { book, minutes } }),
+  );
+}
+
+export function openEditSession(session: EditableSession) {
+  window.dispatchEvent(
+    new CustomEvent<LogSessionDetail>(LOG_SESSION_EVENT, { detail: { editSession: session } }),
   );
 }
 

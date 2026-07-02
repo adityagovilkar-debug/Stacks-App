@@ -19,11 +19,30 @@ import {
   Book as BookIcon,
   Tag as TagIcon,
   FolderHeart,
+  Bookmark,
+  Layers,
+  HandHelping,
+  Dice5,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useBooks, useTags, useCollections } from "@/lib/queries";
+import { useBooks, useTags, useCollections, useSavedViews, useQuotes } from "@/lib/queries";
 import { COMMAND_EVENT, openLogSession } from "@/lib/events";
+import { libraryHref } from "@/lib/viewQuery";
 import { cn } from "@/lib/utils";
+
+// Subsequence fuzzy match so "wats" finds "Watts". Substring hits rank first.
+function fuzzyRank(needle: string, hay: string): number | null {
+  const n = needle.toLowerCase();
+  const h = hay.toLowerCase();
+  if (!n) return 0;
+  const idx = h.indexOf(n);
+  if (idx >= 0) return idx; // exact substring — best, earlier = better
+  let i = 0;
+  for (let j = 0; j < h.length && i < n.length; j++) {
+    if (h[j] === n[i]) i++;
+  }
+  return i === n.length ? 1000 + h.length : null; // subsequence — worse
+}
 
 interface Item {
   id: string;
@@ -39,6 +58,9 @@ const PAGES: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Library", href: "/library", icon: Library },
   { label: "Add a book", href: "/add", icon: ScanLine },
   { label: "Reading queue", href: "/queue", icon: ListChecks },
+  { label: "What next? (pick a book)", href: "/next", icon: Dice5 },
+  { label: "Series", href: "/series", icon: Layers },
+  { label: "Lending desk", href: "/lending", icon: HandHelping },
   { label: "Reading log", href: "/log", icon: NotebookPen },
   { label: "Progress / stats", href: "/stats", icon: BarChart3 },
   { label: "Year in review", href: "/wrapped", icon: Sparkles },
@@ -53,6 +75,8 @@ export function CommandPalette() {
   const { data: books = [] } = useBooks();
   const { data: tags = [] } = useTags();
   const { data: collections = [] } = useCollections();
+  const { data: savedViews = [] } = useSavedViews();
+  const { data: quotes = [] } = useQuotes();
 
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -118,12 +142,12 @@ export function CommandPalette() {
 
     if (!needle) return [...actions, ...pages];
 
-    const match = (s: string) => s.toLowerCase().includes(needle);
+    const match = (s: string) => fuzzyRank(needle, s) != null;
     const out: Item[] = [];
     out.push(...actions.filter((a) => match(a.label)));
     out.push(...pages.filter((p) => match(p.label)));
     for (const b of books) {
-      if (out.length > 50) break;
+      if (out.length > 60) break;
       if (match(b.title) || (b.authors ?? []).some(match))
         out.push({
           id: "b-" + b.id,
@@ -134,6 +158,15 @@ export function CommandPalette() {
           run: () => go(`/book/${b.id}`),
         });
     }
+    for (const v of savedViews)
+      if (match(v.name))
+        out.push({
+          id: "v-" + v.id,
+          group: "Shelves",
+          label: v.name,
+          icon: Bookmark,
+          run: () => go(libraryHref(v.query)),
+        });
     for (const t of tags)
       if (match(t.name))
         out.push({
@@ -142,7 +175,7 @@ export function CommandPalette() {
           label: t.name,
           sub: t.kind,
           icon: TagIcon,
-          run: () => go(`/library?tag=${t.id}`),
+          run: () => go(`/library?tags=${t.id}`),
         });
     for (const c of collections)
       if (match(c.name))
@@ -153,9 +186,21 @@ export function CommandPalette() {
           icon: FolderHeart,
           run: () => go(`/library?collection=${c.id}`),
         });
+    for (const qt of quotes) {
+      if (out.length > 90) break;
+      if (match(qt.text))
+        out.push({
+          id: "q-" + qt.id,
+          group: "Quotes",
+          label: qt.text,
+          sub: qt.book?.title,
+          icon: QuoteIcon,
+          run: () => go(`/book/${qt.book_id}`),
+        });
+    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, books, tags, collections]);
+  }, [q, books, tags, collections, savedViews, quotes]);
 
   useEffect(() => setActive(0), [q]);
 

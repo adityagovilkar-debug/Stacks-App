@@ -36,7 +36,7 @@ import {
   useRemoveFromQueue,
 } from "@/lib/queries";
 import { buildPathMap } from "@/lib/locations";
-import { openEditBook, openLogSession, startTimer } from "@/lib/events";
+import { openEditBook, openEditSession, openLogSession, startTimer } from "@/lib/events";
 import {
   readingProgress,
   estimateTimeLeft,
@@ -44,6 +44,8 @@ import {
   isAudiobook,
 } from "@/lib/stats";
 import { QuotesSection } from "@/components/QuotesSection";
+import { ReadThroughsSection } from "@/components/ReadThroughsSection";
+import { LoanSection } from "@/components/LoanSection";
 import {
   FORMAT_LABEL,
   OWNERSHIP_LABEL,
@@ -382,6 +384,12 @@ export default function BookDetailPage() {
         </button>
       </section>
 
+      {/* Per-read history (each re-read keeps its own rating + review) */}
+      <ReadThroughsSection bookId={book.id} />
+
+      {/* Lending */}
+      <LoanSection book={book} />
+
       {/* Quotes / highlights */}
       <QuotesSection bookId={book.id} />
 
@@ -415,6 +423,24 @@ export default function BookDetailPage() {
                     {s.note ? ` · “${s.note}”` : ""}
                   </p>
                 </div>
+                <button
+                  onClick={() =>
+                    openEditSession({
+                      id: s.id,
+                      book_id: s.book_id,
+                      book_title: book!.title,
+                      happened_on: s.happened_on,
+                      pages_read: s.pages_read,
+                      minutes: s.minutes,
+                      end_page: s.end_page,
+                      note: s.note,
+                    })
+                  }
+                  aria-label="Edit session"
+                  className="rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => delSession.mutate(s.id)}
                   aria-label="Delete session"

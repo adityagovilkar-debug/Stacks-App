@@ -18,6 +18,9 @@ import {
   Search,
   Timer as TimerIcon,
   Square,
+  Layers,
+  HandHelping,
+  Dice5,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -31,6 +34,7 @@ import {
   openLogSession,
   openCommand,
   type EditBookDetail,
+  type EditableSession,
   type LogSessionDetail,
   type TimerDetail,
 } from "@/lib/events";
@@ -51,6 +55,9 @@ const NAV: NavItem[] = [
   { href: "/library", label: "Library", short: "Library", icon: Library, mobile: true },
   { href: "/add", label: "Add a book", short: "Add", icon: ScanLine, mobile: true },
   { href: "/queue", label: "Reading queue", short: "Queue", icon: ListChecks, mobile: true },
+  { href: "/next", label: "What next?", short: "Next", icon: Dice5 },
+  { href: "/series", label: "Series", short: "Series", icon: Layers },
+  { href: "/lending", label: "Lending desk", short: "Lending", icon: HandHelping },
   { href: "/log", label: "Reading log", short: "Log", icon: NotebookPen },
   { href: "/stats", label: "Progress", short: "Stats", icon: BarChart3, mobile: true },
   { href: "/wrapped", label: "Year in review", short: "Wrapped", icon: Sparkles },
@@ -68,6 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [logOpen, setLogOpen] = useState(false);
   const [logBook, setLogBook] = useState<LogSessionDetail["book"]>(undefined);
   const [logMinutes, setLogMinutes] = useState<number | undefined>(undefined);
+  const [logEditSession, setLogEditSession] = useState<EditableSession | undefined>(undefined);
   const [editOpen, setEditOpen] = useState(false);
   const [editBook, setEditBook] = useState<Book | undefined>(undefined);
 
@@ -80,6 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const d = (e as CustomEvent<LogSessionDetail>).detail;
       setLogBook(d?.book);
       setLogMinutes(d?.minutes);
+      setLogEditSession(d?.editSession);
       setLogOpen(true);
     }
     function onEdit(e: Event) {
@@ -102,11 +111,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } catch {}
     function onTimer(e: Event) {
       const b = (e as CustomEvent<TimerDetail>).detail.book;
-      const t = { id: b.id, title: b.title, startedAt: Date.now() };
-      setTimer(t);
-      try {
-        localStorage.setItem("stacks-timer", JSON.stringify(t));
-      } catch {}
+      setTimer((current) => {
+        // Don't silently throw away a running timer — confirm the swap.
+        if (current && current.id !== b.id) {
+          const mins = Math.max(1, Math.round((Date.now() - current.startedAt) / 60000));
+          const ok = window.confirm(
+            `A timer for “${current.title}” has been running for ${mins} min. ` +
+              `Discard it and start a new timer for “${b.title}”?`,
+          );
+          if (!ok) return current;
+        }
+        const t = { id: b.id, title: b.title, startedAt: Date.now() };
+        try {
+          localStorage.setItem("stacks-timer", JSON.stringify(t));
+        } catch {}
+        return t;
+      });
     }
     window.addEventListener(TIMER_EVENT, onTimer);
     return () => window.removeEventListener(TIMER_EVENT, onTimer);
@@ -307,6 +327,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         open={logOpen}
         initialBook={logBook}
         initialMinutes={logMinutes}
+        editSession={logEditSession}
         onClose={() => setLogOpen(false)}
       />
       <EditBookDialog

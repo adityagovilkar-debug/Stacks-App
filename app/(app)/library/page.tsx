@@ -1,14 +1,15 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search, SlidersHorizontal, X, BookPlus, Heart, Bookmark, Save } from "lucide-react";
+import { Search, SlidersHorizontal, X, BookPlus, Heart, Bookmark, Save, CheckSquare, Share2 } from "lucide-react";
 import { BookCard } from "@/components/BookCard";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonGrid } from "@/components/Skeleton";
 import { DuplicatesNotice } from "@/components/DuplicatesNotice";
+import { ShareBar } from "@/components/ShareBar";
 import {
   useBooks,
   useCollections,
@@ -19,6 +20,7 @@ import {
   useDeleteSavedView,
 } from "@/lib/queries";
 import { locationOptions } from "@/lib/locations";
+import { libraryHref, paramsToViewQuery } from "@/lib/viewQuery";
 import {
   FORMAT_LABEL,
   OWNERSHIP_LABEL,
@@ -61,6 +63,7 @@ export default function LibraryPage() {
 
 function LibraryInner() {
   const params = useSearchParams();
+  const router = useRouter();
   const { data: books = [], isLoading } = useBooks();
   const { data: tags = [] } = useTags();
   const { data: collections = [] } = useCollections();
@@ -69,22 +72,32 @@ function LibraryInner() {
   const addView = useAddSavedView();
   const delView = useDeleteSavedView();
 
-  const [q, setQ] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [sort, setSort] = useState<Sort>("added");
+  // Read the whole filter state from the URL once, on mount.
+  const [initial] = useState(() => paramsToViewQuery(params));
 
-  const [status, setStatus] = useState<Set<ReadStatus>>(
-    new Set(params.get("status") ? [params.get("status") as ReadStatus] : []),
-  );
-  const [ownership, setOwnership] = useState<Set<Ownership>>(new Set());
-  const [formats, setFormats] = useState<Set<BookFormat>>(new Set());
-  const [tagIds, setTagIds] = useState<Set<string>>(
-    new Set(params.get("tag") ? [params.get("tag")!] : []),
-  );
-  const [collectionId, setCollectionId] = useState(params.get("collection") ?? "");
-  const [locationId, setLocationId] = useState(params.get("location") ?? "");
-  const [favOnly, setFavOnly] = useState(false);
-  const [minRating, setMinRating] = useState(0);
+  const [q, setQ] = useState(initial.q ?? "");
+  const [showFilters, setShowFilters] = useState(false);
+  const [sort, setSort] = useState<Sort>((initial.sort as Sort) ?? "added");
+
+  const [status, setStatus] = useState<Set<ReadStatus>>(new Set(initial.status));
+  const [ownership, setOwnership] = useState<Set<Ownership>>(new Set(initial.ownership));
+  const [formats, setFormats] = useState<Set<BookFormat>>(new Set(initial.formats));
+  const [tagIds, setTagIds] = useState<Set<string>>(new Set(initial.tagIds));
+  const [collectionId, setCollectionId] = useState(initial.collectionId ?? "");
+  const [locationId, setLocationId] = useState(initial.locationId ?? "");
+  const [favOnly, setFavOnly] = useState(initial.favOnly ?? false);
+  const [minRating, setMinRating] = useState(initial.minRating ?? 0);
+
+  // Selection mode — pick books to share with a friend.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Reflect the live filter state back into the URL (shareable + bookmarkable).
+  // currentQuery is hoisted; deps cover every field it reads.
+  useEffect(() => {
+    router.replace(libraryHref(currentQuery()), { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, status, ownership, formats, tagIds, collectionId, locationId, favOnly, minRating, sort]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -151,6 +164,15 @@ function LibraryInner() {
     setQ("");
   }
 
+  const selectedBooks = useMemo(
+    () => books.filter((b) => selected.has(b.id)),
+    [books, selected],
+  );
+  function exitSelect() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
   // Capture / restore the whole filter state as a "smart shelf".
   function currentQuery(): ViewQuery {
     return {
@@ -212,7 +234,13 @@ function LibraryInner() {
           </span>
           {savedViews.map((v) => (
             <span key={v.id} className="chip">
-              <button onClick={() => applyQuery(v.query)} className="font-bold">
+              <button
+                onClick={() => {
+                  applyQuery(v.query);
+                  setShowFilters(true);
+                }}
+                className="font-bold"
+              >
                 {v.name}
               </button>
               <button
@@ -258,7 +286,21 @@ function LibraryInner() {
           <SlidersHorizontal className="h-5 w-5" />
           Filters{activeCount > 0 ? ` (${activeCount})` : ""}
         </button>
+        <button
+          className={cn("btn-outline", selectMode && "bg-riso-blue text-white")}
+          onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+        >
+          {selectMode ? <X className="h-5 w-5" /> : <CheckSquare className="h-5 w-5" />}
+          {selectMode ? "Done" : "Select"}
+        </button>
       </div>
+
+      {selectMode && (
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-text-muted">
+          <Share2 className="h-4 w-4 text-riso-blue" />
+          Tap books to select, then share your picks with a friend.
+        </p>
+      )}
 
       {/* Filter panel */}
       {showFilters && (
@@ -387,9 +429,19 @@ function LibraryInner() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
           {filtered.map((b) => (
-            <BookCard key={b.id} book={b} />
+            <BookCard
+              key={b.id}
+              book={b}
+              selectable={selectMode}
+              selected={selected.has(b.id)}
+              onToggleSelect={() => setSelected((prev) => toggle(prev, b.id))}
+            />
           ))}
         </div>
+      )}
+
+      {selectMode && (
+        <ShareBar books={selectedBooks} onClear={() => setSelected(new Set())} />
       )}
     </div>
   );
