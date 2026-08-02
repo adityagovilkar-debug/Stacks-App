@@ -68,6 +68,7 @@ export interface Book {
   published_year: number | null;
   page_count: number | null;
   duration_minutes: number | null; // total length for audiobooks
+  total_locations: number | null; // total Kindle locations (ebooks tracked by location)
   language: string | null;
   description: string | null;
   // classification
@@ -90,6 +91,7 @@ export interface Book {
   favorite: boolean;
   current_page: number | null; // the bookmark (pages)
   audio_position_minutes: number | null; // the bookmark (audiobooks)
+  current_location: number | null; // the bookmark (ebooks tracked by location)
   review: string | null;
   started_on: string | null;
   finished_on: string | null;
@@ -114,6 +116,7 @@ export interface BookInput {
   published_year: number | null;
   page_count: number | null;
   duration_minutes: number | null;
+  total_locations: number | null;
   language: string | null;
   description: string | null;
   format: BookFormat | null;
@@ -144,6 +147,8 @@ export interface ReadingSession {
   pages_read: number;
   minutes: number | null;
   end_page: number | null;
+  locations_read: number | null; // ebook (by location): how many locations
+  end_location: number | null; // ebook (by location): "now at location N"
   note: string | null;
   created_at: string;
   // joined
@@ -157,6 +162,8 @@ export interface SessionInput {
   minutes: number | null;
   end_page: number | null;
   end_position_minutes: number | null; // audiobook "now at" position
+  locations_read: number | null; // ebook (by location)
+  end_location: number | null; // ebook (by location) "now at" position
   note: string | null;
 }
 
@@ -336,6 +343,7 @@ export function emptyBookInput(): BookInput {
     published_year: null,
     page_count: null,
     duration_minutes: null,
+    total_locations: null,
     language: null,
     description: null,
     format: null,
@@ -370,6 +378,7 @@ export function bookToInput(b: Book): BookInput {
     published_year: b.published_year,
     page_count: b.page_count,
     duration_minutes: b.duration_minutes,
+    total_locations: b.total_locations,
     language: b.language,
     description: b.description,
     format: b.format,

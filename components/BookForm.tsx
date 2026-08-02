@@ -181,6 +181,23 @@ export function BookForm({
               />
             </div>
           )}
+          {value.format === "ebook" && (
+            <div className="col-span-2">
+              <label className="label">Total Kindle locations</label>
+              <input
+                className="input"
+                type="number"
+                value={value.total_locations ?? ""}
+                onChange={(e) => set("total_locations", num(e.target.value))}
+                placeholder="Kindle shows “Location X of Y” — enter Y"
+              />
+              <p className="mt-1 text-xs text-text-muted">
+                Set this to track progress by location instead of pages (locations
+                don&apos;t drift with font size). Leave the Pages field as an
+                optional ≈ print-page note.
+              </p>
+            </div>
+          )}
           <div>
             <label className="label">Language</label>
             <input

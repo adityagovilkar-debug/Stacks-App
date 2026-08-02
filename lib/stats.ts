@@ -220,7 +220,9 @@ export function heatmap(sessions: ReadingSession[], weeks = 26): HeatCell[][] {
   const totals = new Map<string, { pages: number; minutes: number }>();
   for (const s of sessions) {
     const cur = totals.get(s.happened_on) ?? { pages: 0, minutes: 0 };
-    cur.pages += s.pages_read || 0;
+    // Count location-ebook progress as a rough page-equivalent so those days
+    // register too.
+    cur.pages += (s.pages_read || 0) + Math.round((s.locations_read || 0) / LOCATIONS_PER_PAGE);
     cur.minutes += s.minutes || 0;
     totals.set(s.happened_on, cur);
   }
@@ -245,7 +247,16 @@ export function isAudiobook(book: Book): boolean {
   return book.format === "audiobook";
 }
 
-// Progress percent — pages for books, minutes for audiobooks.
+// An ebook measured by Kindle location (total_locations set) rather than pages.
+export function isLocationEbook(book: Book): boolean {
+  return book.format === "ebook" && (book.total_locations ?? 0) > 0;
+}
+
+// Rough locations-per-page used only for lighting up activity views (heatmap /
+// weekday) so location-only days aren't blank; never used for a book's own %.
+export const LOCATIONS_PER_PAGE = 15;
+
+// Progress percent — pages, minutes for audiobooks, locations for e-books.
 export function readingProgress(book: Book): number | null {
   if (isAudiobook(book)) {
     if (!book.duration_minutes || !book.audio_position_minutes) return null;
@@ -254,8 +265,25 @@ export function readingProgress(book: Book): number | null {
       Math.round((book.audio_position_minutes / book.duration_minutes) * 100),
     );
   }
+  if (isLocationEbook(book)) {
+    if (!book.total_locations || !book.current_location) return null;
+    return Math.min(
+      100,
+      Math.round((book.current_location / book.total_locations) * 100),
+    );
+  }
   if (!book.page_count || !book.current_page) return null;
   return Math.min(100, Math.round((book.current_page / book.page_count) * 100));
+}
+
+// Locations/hour from sessions that recorded both locations and minutes.
+export function locationSpeed(sessions: ReadingSession[]): number | null {
+  const timed = sessions.filter((s) => (s.minutes ?? 0) > 0 && (s.locations_read ?? 0) > 0);
+  if (!timed.length) return null;
+  const locs = timed.reduce((n, s) => n + (s.locations_read || 0), 0);
+  const mins = timed.reduce((n, s) => n + (s.minutes || 0), 0);
+  if (!mins) return null;
+  return (locs / mins) * 60;
 }
 
 // Average pages on the days you actually read, over the last N days.
@@ -290,6 +318,15 @@ export function estimateTimeLeft(
     if (!book.duration_minutes) return null;
     const left = Math.max(0, book.duration_minutes - (book.audio_position_minutes ?? 0));
     return { minutesLeft: left, daysLeft: null, unitsLeft: left, isAudio: true };
+  }
+  if (isLocationEbook(book)) {
+    if (!book.total_locations) return null;
+    const locsLeft = Math.max(0, book.total_locations - (book.current_location ?? 0));
+    if (locsLeft === 0)
+      return { minutesLeft: 0, daysLeft: 0, unitsLeft: 0, isAudio: false };
+    const speed = locationSpeed(sessions); // locations/hr
+    const minutesLeft = speed ? Math.round((locsLeft / speed) * 60) : null;
+    return { minutesLeft, daysLeft: null, unitsLeft: locsLeft, isAudio: false };
   }
   if (!book.page_count) return null;
   const pagesLeft = Math.max(0, book.page_count - (book.current_page ?? 0));
@@ -364,7 +401,9 @@ export function readingByWeekday(sessions: ReadingSession[]): WeekdayPoint[] {
   for (const s of sessions) {
     const d = parseISO(s.happened_on).getDay();
     if (s.book?.format === "audiobook") minutes[d] += s.minutes || 0;
-    else pages[d] += s.pages_read || 0;
+    else
+      pages[d] +=
+        (s.pages_read || 0) + Math.round((s.locations_read || 0) / LOCATIONS_PER_PAGE);
   }
   // Render Mon-first for a familiar week shape.
   const order = [1, 2, 3, 4, 5, 6, 0];

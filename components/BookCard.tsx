@@ -6,7 +6,7 @@ import { BookCover } from "./BookCover";
 import { StatusStamp } from "./StatusStamp";
 import { RatingStars } from "./RatingStars";
 import { ProgressBar } from "./ProgressBar";
-import { readingProgress, isAudiobook, fmtDuration } from "@/lib/stats";
+import { readingProgress, isAudiobook, isLocationEbook, fmtDuration } from "@/lib/stats";
 import { cn } from "@/lib/utils";
 import type { Book } from "@/lib/types";
 
@@ -89,9 +89,11 @@ export function BookCard({
                 ? book.duration_minutes
                   ? `${fmtDuration(book.audio_position_minutes ?? 0)}/${fmtDuration(book.duration_minutes)} · `
                   : ""
-                : book.page_count
-                  ? `${book.current_page ?? 0}/${book.page_count} pp · `
-                  : ""}
+                : isLocationEbook(book)
+                  ? `loc ${(book.current_location ?? 0).toLocaleString()}/${book.total_locations?.toLocaleString()} · `
+                  : book.page_count
+                    ? `${book.current_page ?? 0}/${book.page_count} pp · `
+                    : ""}
               {progress}%
             </p>
           </div>

@@ -42,6 +42,7 @@ import {
   estimateTimeLeft,
   fmtDuration,
   isAudiobook,
+  isLocationEbook,
 } from "@/lib/stats";
 import { QuotesSection } from "@/components/QuotesSection";
 import { ReadThroughsSection } from "@/components/ReadThroughsSection";
@@ -79,11 +80,14 @@ export default function BookDetailPage() {
   // logging a session with "now on page"), so it never shows a stale value.
   useEffect(() => {
     if (book) {
-      const mark =
-        book.format === "audiobook" ? book.audio_position_minutes : book.current_page;
+      const mark = isAudiobook(book)
+        ? book.audio_position_minutes
+        : isLocationEbook(book)
+          ? book.current_location
+          : book.current_page;
       setBookmark(mark != null ? String(mark) : "");
     }
-  }, [book?.id, book?.current_page, book?.audio_position_minutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [book?.id, book?.current_page, book?.audio_position_minutes, book?.current_location]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (book) setReview(book.review ?? "");
@@ -102,6 +106,7 @@ export default function BookDetailPage() {
 
   const progress = readingProgress(book);
   const audio = isAudiobook(book);
+  const loc = isLocationEbook(book);
   const estimate =
     book.read_status === "reading" ? estimateTimeLeft(book, allSessions) : null;
   const locPath = book.location_id
@@ -112,7 +117,11 @@ export default function BookDetailPage() {
     const v = bookmark.trim() === "" ? null : Number(bookmark);
     patch.mutate({
       id: book!.id,
-      patch: audio ? { audio_position_minutes: v } : { current_page: v },
+      patch: audio
+        ? { audio_position_minutes: v }
+        : loc
+          ? { current_location: v }
+          : { current_page: v },
     });
     toast.success("Bookmark updated");
   }
@@ -253,7 +262,9 @@ export default function BookDetailPage() {
             <p className="mt-1.5 text-sm font-semibold text-text-muted">
               {audio
                 ? `${fmtDuration(book.audio_position_minutes ?? 0)} of ${fmtDuration(book.duration_minutes ?? 0)} · ${progress}%`
-                : `Page ${book.current_page} of ${book.page_count} · ${progress}%`}
+                : loc
+                  ? `Location ${book.current_location?.toLocaleString()} of ${book.total_locations?.toLocaleString()} · ${progress}%`
+                  : `Page ${book.current_page} of ${book.page_count} · ${progress}%`}
             </p>
           </div>
         )}
@@ -262,7 +273,7 @@ export default function BookDetailPage() {
             <Clock className="h-4 w-4" />
             {estimate.minutesLeft != null
               ? `≈ ${fmtDuration(estimate.minutesLeft)} left`
-              : `${estimate.unitsLeft} pages left`}
+              : `${estimate.unitsLeft.toLocaleString()} ${loc ? "locations" : "pages"} left`}
             {estimate.daysLeft
               ? ` · about ${estimate.daysLeft} ${estimate.daysLeft === 1 ? "sitting" : "sittings"} at your pace`
               : ""}
@@ -270,7 +281,9 @@ export default function BookDetailPage() {
         )}
         <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="label">{audio ? "Current position (min)" : "Current page"}</label>
+            <label className="label">
+              {audio ? "Current position (min)" : loc ? "Current location" : "Current page"}
+            </label>
             <input
               className="input w-32"
               type="number"
@@ -282,9 +295,13 @@ export default function BookDetailPage() {
                   ? book.duration_minutes
                     ? `of ${book.duration_minutes}`
                     : "minute"
-                  : book.page_count
-                    ? `of ${book.page_count}`
-                    : "page"
+                  : loc
+                    ? book.total_locations
+                      ? `of ${book.total_locations}`
+                      : "location"
+                    : book.page_count
+                      ? `of ${book.page_count}`
+                      : "page"
               }
             />
           </div>
@@ -301,7 +318,13 @@ export default function BookDetailPage() {
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <Meta label="Publisher" value={book.publisher} />
             <Meta label="Published" value={book.published_year?.toString()} />
-            <Meta label="Pages" value={book.page_count?.toString()} />
+            {loc && (
+              <Meta label="Locations" value={book.total_locations?.toLocaleString()} />
+            )}
+            <Meta
+              label={loc ? "Pages (≈)" : "Pages"}
+              value={book.page_count?.toString()}
+            />
             <Meta label="Language" value={book.language} />
             <Meta label="Format" value={book.format ? FORMAT_LABEL[book.format] : null} />
             <Meta label="Ownership" value={OWNERSHIP_LABEL[book.ownership]} />
@@ -415,11 +438,13 @@ export default function BookDetailPage() {
                   <p className="text-xs text-text-muted">
                     {audio
                       ? `🎧 ${s.minutes ?? 0} min listened`
-                      : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
-                          s.minutes && s.pages_read
-                            ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
-                            : ""
-                        }`}
+                      : loc
+                        ? `📖 ${(s.locations_read ?? 0).toLocaleString()} locations${s.minutes ? ` · ${s.minutes} min` : ""}`
+                        : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
+                            s.minutes && s.pages_read
+                              ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
+                              : ""
+                          }`}
                     {s.note ? ` · “${s.note}”` : ""}
                   </p>
                 </div>
@@ -433,6 +458,8 @@ export default function BookDetailPage() {
                       pages_read: s.pages_read,
                       minutes: s.minutes,
                       end_page: s.end_page,
+                      locations_read: s.locations_read,
+                      end_location: s.end_location,
                       note: s.note,
                     })
                   }
@@ -456,7 +483,9 @@ export default function BookDetailPage() {
           <Clock className="h-3.5 w-3.5" />
           {audio
             ? `${sessions.reduce((n, s) => n + (s.minutes || 0), 0)} minutes logged across `
-            : `${sessions.reduce((n, s) => n + s.pages_read, 0)} pages logged across `}
+            : loc
+              ? `${sessions.reduce((n, s) => n + (s.locations_read || 0), 0).toLocaleString()} locations logged across `
+              : `${sessions.reduce((n, s) => n + s.pages_read, 0)} pages logged across `}
           {sessions.length} sessions
         </p>
       </section>

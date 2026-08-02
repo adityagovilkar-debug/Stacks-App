@@ -18,6 +18,8 @@ export interface EditableSession {
   pages_read: number;
   minutes: number | null;
   end_page: number | null;
+  locations_read: number | null;
+  end_location: number | null;
   note: string | null;
 }
 export interface LogSessionDetail {

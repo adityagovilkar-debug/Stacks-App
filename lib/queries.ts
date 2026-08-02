@@ -471,6 +471,7 @@ export function useReadAgain() {
           finished_on: today,
           current_page: null,
           audio_position_minutes: null,
+          current_location: null,
         })
         .eq("id", book.id);
       if (error) throw error;
@@ -614,7 +615,9 @@ export function useLogSession() {
       // Update the book: advance the bookmark + flip to "reading" if needed.
       const { data: book } = await sb()
         .from("books")
-        .select("format, current_page, audio_position_minutes, read_status, started_on")
+        .select(
+          "format, current_page, audio_position_minutes, total_locations, current_location, read_status, started_on",
+        )
         .eq("id", input.book_id)
         .maybeSingle();
       if (book) {
@@ -627,6 +630,14 @@ export function useLogSession() {
                 ? (book.audio_position_minutes ?? 0) + input.minutes
                 : null;
           if (newPos != null) patch.audio_position_minutes = newPos;
+        } else if (book.format === "ebook" && (book.total_locations ?? 0) > 0) {
+          const newLoc =
+            input.end_location != null
+              ? input.end_location
+              : input.locations_read
+                ? (book.current_location ?? 0) + input.locations_read
+                : null;
+          if (newLoc != null) patch.current_location = newLoc;
         } else {
           const newPage =
             input.end_page != null
@@ -661,13 +672,13 @@ export function useLogSession() {
 async function recomputeBookmark(bookId: string) {
   const { data: book } = await sb()
     .from("books")
-    .select("format, page_count, duration_minutes")
+    .select("format, page_count, duration_minutes, total_locations")
     .eq("id", bookId)
     .maybeSingle();
   if (!book) return;
   const { data: rows } = await sb()
     .from("reading_sessions")
-    .select("pages_read, minutes, end_page")
+    .select("pages_read, minutes, end_page, locations_read, end_location")
     .eq("book_id", bookId);
   const sessions = rows ?? [];
 
@@ -678,6 +689,14 @@ async function recomputeBookmark(bookId: string) {
       pos = book.duration_minutes ? Math.min(total, book.duration_minutes) : total;
     }
     await sb().from("books").update({ audio_position_minutes: pos }).eq("id", bookId);
+  } else if (book.format === "ebook" && (book.total_locations ?? 0) > 0) {
+    let loc: number | null = null;
+    const withEnd = sessions.filter((s) => s.end_location != null);
+    if (withEnd.length) loc = Math.max(...withEnd.map((s) => s.end_location as number));
+    else if (sessions.length)
+      loc = sessions.reduce((n, s) => n + (s.locations_read || 0), 0);
+    if (loc != null && book.total_locations) loc = Math.min(loc, book.total_locations);
+    await sb().from("books").update({ current_location: loc }).eq("id", bookId);
   } else {
     let page: number | null = null;
     const withEnd = sessions.filter((s) => s.end_page != null);
@@ -701,11 +720,28 @@ export function useUpdateSession() {
     }: {
       id: string;
       book_id: string;
-      patch: Partial<Pick<ReadingSession, "happened_on" | "pages_read" | "minutes" | "end_page" | "note">>;
+      patch: Partial<
+        Pick<
+          ReadingSession,
+          | "happened_on"
+          | "pages_read"
+          | "minutes"
+          | "end_page"
+          | "locations_read"
+          | "end_location"
+          | "note"
+        >
+      >;
     }) => {
       const { error } = await sb().from("reading_sessions").update(patch).eq("id", id);
       if (error) throw error;
-      if ("pages_read" in patch || "end_page" in patch || "minutes" in patch) {
+      if (
+        "pages_read" in patch ||
+        "end_page" in patch ||
+        "minutes" in patch ||
+        "locations_read" in patch ||
+        "end_location" in patch
+      ) {
         await recomputeBookmark(book_id);
       }
       return book_id;

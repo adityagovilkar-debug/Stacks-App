@@ -31,6 +31,8 @@ export function LogSessionDialog({
   const [minutes, setMinutes] = useState("");
   const [endPage, setEndPage] = useState("");
   const [endPos, setEndPos] = useState("");
+  const [locations, setLocations] = useState("");
+  const [endLoc, setEndLoc] = useState("");
   const [note, setNote] = useState("");
   const [showAll, setShowAll] = useState(false);
 
@@ -63,6 +65,8 @@ export function LogSessionDialog({
   const hiddenCount = books.length - activeBooks.length;
   const selected = books.find((b) => b.id === bookId);
   const isAudio = selected?.format === "audiobook";
+  const isLocation =
+    selected?.format === "ebook" && (selected?.total_locations ?? 0) > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +77,8 @@ export function LogSessionDialog({
       setMinutes(editSession.minutes != null ? String(editSession.minutes) : "");
       setEndPage(editSession.end_page != null ? String(editSession.end_page) : "");
       setEndPos("");
+      setLocations(editSession.locations_read != null ? String(editSession.locations_read) : "");
+      setEndLoc(editSession.end_location != null ? String(editSession.end_location) : "");
       setNote(editSession.note ?? "");
       setShowAll(false);
       return;
@@ -83,6 +89,8 @@ export function LogSessionDialog({
     setMinutes(initialMinutes ? String(initialMinutes) : "");
     setEndPage("");
     setEndPos("");
+    setLocations("");
+    setEndLoc("");
     setNote("");
     setShowAll(false);
   }, [open, initialBook?.id, initialMinutes, editSession]);
@@ -101,27 +109,41 @@ export function LogSessionDialog({
     const from = selected?.audio_position_minutes ?? 0;
     if (v && end > from && !minutes) setMinutes(String(end - from));
   }
+  // Location ebook: "now at location X" auto-fills locations read.
+  function onEndLoc(v: string) {
+    setEndLoc(v);
+    const end = Number(v);
+    const from = selected?.current_location ?? 0;
+    if (v && end > from && !locations) setLocations(String(end - from));
+  }
 
   async function save() {
     if (!bookId) return toast.error("Pick a book");
     if (isAudio) {
       if ((Number(minutes) || 0) <= 0 && !endPos)
         return toast.error("How many minutes did you listen?");
+    } else if (isLocation) {
+      if ((Number(locations) || 0) <= 0 && !endLoc)
+        return toast.error("How many locations did you read?");
     } else if ((Number(pages) || 0) <= 0 && !endPage) {
       return toast.error("How many pages did you read?");
     }
+    // Shared fields, unit-aware.
+    const row = {
+      happened_on: date,
+      pages_read: isAudio || isLocation ? 0 : Number(pages) || 0,
+      minutes: minutes ? Number(minutes) : null,
+      end_page: !isAudio && !isLocation && endPage ? Number(endPage) : null,
+      locations_read: isLocation ? Number(locations) || 0 : null,
+      end_location: isLocation && endLoc ? Number(endLoc) : null,
+      note: note.trim() || null,
+    };
     try {
       if (isEditing) {
         await update.mutateAsync({
           id: editSession!.id,
           book_id: bookId,
-          patch: {
-            happened_on: date,
-            pages_read: isAudio ? 0 : Number(pages) || 0,
-            minutes: minutes ? Number(minutes) : null,
-            end_page: !isAudio && endPage ? Number(endPage) : null,
-            note: note.trim() || null,
-          },
+          patch: row,
         });
         toast.success("Session updated");
         onClose();
@@ -129,12 +151,8 @@ export function LogSessionDialog({
       }
       await log.mutateAsync({
         book_id: bookId,
-        happened_on: date,
-        pages_read: isAudio ? 0 : Number(pages) || 0,
-        minutes: minutes ? Number(minutes) : null,
-        end_page: !isAudio && endPage ? Number(endPage) : null,
+        ...row,
         end_position_minutes: isAudio && endPos ? Number(endPos) : null,
-        note: note.trim() || null,
       });
       toast.success("Logged! Keep the streak going 🔥");
       onClose();
@@ -146,6 +164,10 @@ export function LogSessionDialog({
   const speed =
     pages && minutes && Number(minutes) > 0
       ? Math.round((Number(pages) / Number(minutes)) * 60)
+      : null;
+  const locSpeed =
+    locations && minutes && Number(minutes) > 0
+      ? Math.round((Number(locations) / Number(minutes)) * 60)
       : null;
 
   return (
@@ -239,6 +261,48 @@ export function LogSessionDialog({
                 </div>
               )}
             </>
+          ) : isLocation ? (
+            <>
+              <div>
+                <label className="label">Locations read</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={locations}
+                  onChange={(e) => setLocations(e.target.value)}
+                  placeholder="e.g. 400"
+                />
+              </div>
+              <div>
+                <label className="label">Minutes (optional)</label>
+                <input
+                  className="input"
+                  type="number"
+                  inputMode="numeric"
+                  value={minutes}
+                  onChange={(e) => setMinutes(e.target.value)}
+                  placeholder="for pace"
+                />
+              </div>
+              {!isEditing && (
+                <div>
+                  <label className="label">Now at location (optional)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    value={endLoc}
+                    onChange={(e) => onEndLoc(e.target.value)}
+                    placeholder={
+                      selected?.current_location
+                        ? `was ${selected.current_location}`
+                        : "moves your bookmark"
+                    }
+                  />
+                </div>
+              )}
+            </>
           ) : (
             <>
               <div>
@@ -292,9 +356,14 @@ export function LogSessionDialog({
           </div>
         </div>
 
-        {!isAudio && speed != null && (
+        {!isAudio && !isLocation && speed != null && (
           <p className="text-sm font-semibold text-riso-blue">
             That&apos;s ~{speed} pages/hour ⚡
+          </p>
+        )}
+        {isLocation && locSpeed != null && (
+          <p className="text-sm font-semibold text-riso-blue">
+            That&apos;s ~{locSpeed} locations/hour ⚡
           </p>
         )}
 

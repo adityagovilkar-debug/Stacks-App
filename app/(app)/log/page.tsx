@@ -72,6 +72,7 @@ export default function LogPage() {
             const dayAudioMin = items
               .filter((s) => s.book?.format === "audiobook")
               .reduce((n, s) => n + (s.minutes || 0), 0);
+            const dayLocations = items.reduce((n, s) => n + (s.locations_read || 0), 0);
             return (
             <div key={day}>
               <h2 className="mb-2 font-display text-sm font-extrabold uppercase tracking-wide text-text-muted">
@@ -79,6 +80,7 @@ export default function LogPage() {
                 <span className="text-riso-blue">
                   {[
                     dayPages > 0 ? `${dayPages} pages` : null,
+                    dayLocations > 0 ? `${dayLocations.toLocaleString()} locations` : null,
                     dayAudioMin > 0 ? `${dayAudioMin} min listened` : null,
                   ]
                     .filter(Boolean)
@@ -104,11 +106,13 @@ export default function LogPage() {
                       <p className="text-xs text-text-muted">
                         {s.book?.format === "audiobook"
                           ? `🎧 ${s.minutes ?? 0} min listened`
-                          : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
-                              s.minutes && s.pages_read
-                                ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
-                                : ""
-                            }`}
+                          : (s.locations_read ?? 0) > 0
+                            ? `📖 ${(s.locations_read ?? 0).toLocaleString()} locations${s.minutes ? ` · ${s.minutes} min` : ""}`
+                            : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
+                                s.minutes && s.pages_read
+                                  ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
+                                  : ""
+                              }`}
                       </p>
                       {s.note && (
                         <p className="mt-0.5 truncate text-xs italic text-text-muted">
@@ -126,6 +130,8 @@ export default function LogPage() {
                           pages_read: s.pages_read,
                           minutes: s.minutes,
                           end_page: s.end_page,
+                          locations_read: s.locations_read,
+                          end_location: s.end_location,
                           note: s.note,
                         })
                       }
