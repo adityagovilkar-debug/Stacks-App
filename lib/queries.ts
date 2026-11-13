@@ -23,6 +23,7 @@ import type {
   ReadThrough,
   ReadThroughInput,
   ReadingSession,
+  Recommendation,
   SavedView,
   SessionInput,
   Tag,
@@ -1414,5 +1415,112 @@ export function useAddQuotes() {
       qc.invalidateQueries({ queryKey: ["quotes"] });
       qc.invalidateQueries({ queryKey: ["book-quotes"] });
     },
+  });
+}
+
+// =====================================================================
+// Recommendations ledger
+// =====================================================================
+const REC_SELECT = "*, book:books(id, title, authors, cover_url)";
+
+export function useRecommendations() {
+  return useQuery({
+    queryKey: ["recommendations"],
+    queryFn: async (): Promise<Recommendation[]> => {
+      const rows = await fetchAll<Recommendation>(() =>
+        sb()
+          .from("recommendations")
+          .select(REC_SELECT)
+          .order("on_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .order("id"),
+      );
+      return rows.map((r) =>
+        r.book ? { ...r, book: { ...r.book, cover_url: fixCoverUrl(r.book.cover_url) } } : r,
+      );
+    },
+  });
+}
+
+export function useBookRecommendations(bookId: string | undefined) {
+  return useQuery({
+    enabled: !!bookId,
+    queryKey: ["recommendations", "book", bookId],
+    queryFn: async (): Promise<Recommendation[]> => {
+      const { data, error } = await sb()
+        .from("recommendations")
+        .select("*")
+        .eq("book_id", bookId!)
+        .order("on_date", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Recommendation[];
+    },
+  });
+}
+
+export function useAddRecommendations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      rows: {
+        book_id: string;
+        person: string;
+        direction: "from" | "to";
+        on_date?: string;
+        channel?: string | null;
+        note?: string | null;
+      }[],
+    ) => {
+      if (!rows.length) return;
+      const user_id = await uid();
+      const { error } = await sb()
+        .from("recommendations")
+        .insert(rows.map((r) => ({ ...r, user_id })));
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["recommendations"] }),
+  });
+}
+
+export function useDeleteRecommendation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb().from("recommendations").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["recommendations"] }),
+  });
+}
+
+// =====================================================================
+// Editions + bulk moves
+// =====================================================================
+// Mark books as editions of one work (or pass null to unlink them).
+export function useSetEdition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, workId }: { ids: string[]; workId: string | null }) => {
+      const { error } = await sb().from("books").update({ work_id: workId }).in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateBooks(qc),
+  });
+}
+
+// Move books to another location (or off the shelves with null).
+export function useMoveBooks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, locationId }: { ids: string[]; locationId: string | null }) => {
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await sb()
+          .from("books")
+          .update({ location_id: locationId })
+          .in("id", ids.slice(i, i + 200));
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => invalidateBooks(qc),
   });
 }

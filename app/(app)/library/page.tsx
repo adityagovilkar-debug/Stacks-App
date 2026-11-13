@@ -11,6 +11,7 @@ import { SkeletonGrid } from "@/components/Skeleton";
 import { DuplicatesNotice } from "@/components/DuplicatesNotice";
 import { ShareBar } from "@/components/ShareBar";
 import {
+  useAllReadThroughs,
   useBooks,
   useCollections,
   useLocations,
@@ -87,6 +88,34 @@ function LibraryInner() {
   const [locationId, setLocationId] = useState(initial.locationId ?? "");
   const [favOnly, setFavOnly] = useState(initial.favOnly ?? false);
   const [minRating, setMinRating] = useState(initial.minRating ?? 0);
+  // Exclusions + date rules
+  const [notStatus, setNotStatus] = useState<Set<ReadStatus>>(new Set(initial.notStatus));
+  const [notTagIds, setNotTagIds] = useState<Set<string>>(new Set(initial.notTagIds));
+  const [added, setAdded] = useState<ViewQuery["added"]>(initial.added);
+  const [finishedYear, setFinishedYear] = useState<number | undefined>(initial.finishedYear);
+  const { data: reads = [] } = useAllReadThroughs();
+
+  // Books with a read finished in each year (a re-read counts in its year).
+  const readYears = useMemo(() => {
+    const m = new Map<number, Set<string>>();
+    for (const r of reads) {
+      if (!r.finished_on) continue;
+      const y = Number(r.finished_on.slice(0, 4));
+      if (!m.has(y)) m.set(y, new Set());
+      m.get(y)!.add(r.book_id);
+    }
+    return m;
+  }, [reads]);
+  const years = useMemo(() => [...readYears.keys()].sort((a, b) => b - a), [readYears]);
+
+  // Tri-state chips: off → include → exclude → off.
+  function cycle<T>(v: T, inc: Set<T>, setInc: (s: Set<T>) => void, exc: Set<T>, setExc: (s: Set<T>) => void) {
+    if (inc.has(v)) {
+      setInc(toggle(inc, v));
+      setExc(toggle(exc, v));
+    } else if (exc.has(v)) setExc(toggle(exc, v));
+    else setInc(toggle(inc, v));
+  }
 
   // Selection mode — pick books to share with a friend.
   const [selectMode, setSelectMode] = useState(false);
@@ -100,7 +129,7 @@ function LibraryInner() {
     const t = setTimeout(() => router.replace(href, { scroll: false }), 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, status, ownership, formats, tagIds, collectionId, locationId, favOnly, minRating, sort]);
+  }, [q, status, ownership, formats, tagIds, collectionId, locationId, favOnly, minRating, sort, notStatus, notTagIds, added, finishedYear]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -123,6 +152,16 @@ function LibraryInner() {
       if (locationId && b.location_id !== locationId) return false;
       if (favOnly && !b.favorite) return false;
       if (minRating && (b.rating ?? 0) < minRating) return false;
+      if (notStatus.has(b.read_status)) return false;
+      if (notTagIds.size && (b.tags ?? []).some((t) => notTagIds.has(t.id))) return false;
+      if (added) {
+        const d = new Date(b.created_at);
+        const now = new Date();
+        if (added === "30d" && now.getTime() - d.getTime() > 30 * 86400000) return false;
+        if (added === "year" && d.getFullYear() !== now.getFullYear()) return false;
+        if (added === "lastyear" && d.getFullYear() !== now.getFullYear() - 1) return false;
+      }
+      if (finishedYear && !readYears.get(finishedYear)?.has(b.id)) return false;
       return true;
     });
 
@@ -143,7 +182,7 @@ function LibraryInner() {
       }
     });
     return list;
-  }, [books, q, status, ownership, formats, tagIds, collectionId, locationId, favOnly, minRating, sort]);
+  }, [books, q, status, ownership, formats, tagIds, collectionId, locationId, favOnly, minRating, sort, notStatus, notTagIds, added, finishedYear, readYears]);
 
   const activeCount =
     status.size +
@@ -153,7 +192,11 @@ function LibraryInner() {
     (collectionId ? 1 : 0) +
     (locationId ? 1 : 0) +
     (favOnly ? 1 : 0) +
-    (minRating ? 1 : 0);
+    (minRating ? 1 : 0) +
+    notStatus.size +
+    notTagIds.size +
+    (added ? 1 : 0) +
+    (finishedYear ? 1 : 0);
 
   function clearAll() {
     setStatus(new Set());
@@ -164,6 +207,10 @@ function LibraryInner() {
     setLocationId("");
     setFavOnly(false);
     setMinRating(0);
+    setNotStatus(new Set());
+    setNotTagIds(new Set());
+    setAdded(undefined);
+    setFinishedYear(undefined);
     setQ("");
   }
 
@@ -189,6 +236,10 @@ function LibraryInner() {
       favOnly: favOnly || undefined,
       minRating: minRating || undefined,
       sort,
+      notStatus: [...notStatus],
+      notTagIds: [...notTagIds],
+      added,
+      finishedYear,
     };
   }
   function applyQuery(v: ViewQuery) {
@@ -202,6 +253,10 @@ function LibraryInner() {
     setFavOnly(v.favOnly ?? false);
     setMinRating(v.minRating ?? 0);
     setSort((v.sort as Sort) ?? "added");
+    setNotStatus(new Set(v.notStatus ?? []));
+    setNotTagIds(new Set(v.notTagIds ?? []));
+    setAdded(v.added);
+    setFinishedYear(v.finishedYear);
   }
   async function saveView() {
     const name = window.prompt("Name this shelf (e.g. “Unread sci-fi”)");
@@ -308,9 +363,17 @@ function LibraryInner() {
       {/* Filter panel */}
       {showFilters && (
         <div className="card-soft space-y-4 p-4">
+          <p className="-mb-1 text-xs text-text-muted">
+            Tap a status or tag once to include it, twice to <b>exclude</b> it.
+          </p>
           <FacetRow label="Status">
             {(Object.keys(READ_STATUS_LABEL) as ReadStatus[]).map((s) => (
-              <Chip key={s} on={status.has(s)} onClick={() => setStatus(toggle(status, s))}>
+              <Chip
+                key={s}
+                on={status.has(s)}
+                off={notStatus.has(s)}
+                onClick={() => cycle(s, status, setStatus, notStatus, setNotStatus)}
+              >
                 {READ_STATUS_LABEL[s]}
               </Chip>
             ))}
@@ -343,7 +406,8 @@ function LibraryInner() {
                     <Chip
                       key={t.id}
                       on={tagIds.has(t.id)}
-                      onClick={() => setTagIds(toggle(tagIds, t.id))}
+                      off={notTagIds.has(t.id)}
+                      onClick={() => cycle(t.id, tagIds, setTagIds, notTagIds, setNotTagIds)}
                       className={tagIds.has(t.id) ? p.chip : ""}
                     >
                       <span className={cn("h-2 w-2 rounded-full", p.dot)} /> {t.name}
@@ -355,6 +419,34 @@ function LibraryInner() {
           })}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <div className="label">Added</div>
+              <select
+                className="select"
+                value={added ?? ""}
+                onChange={(e) => setAdded((e.target.value || undefined) as ViewQuery["added"])}
+              >
+                <option value="">Any time</option>
+                <option value="30d">In the last 30 days</option>
+                <option value="year">This year</option>
+                <option value="lastyear">Last year</option>
+              </select>
+            </div>
+            <div>
+              <div className="label">Finished reading in</div>
+              <select
+                className="select"
+                value={finishedYear ?? ""}
+                onChange={(e) => setFinishedYear(e.target.value ? Number(e.target.value) : undefined)}
+              >
+                <option value="">Any year</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
             {collections.length > 0 && (
               <div>
                 <div className="label">Collection</div>
@@ -463,11 +555,13 @@ function FacetRow({ label, children }: { label: string; children: React.ReactNod
 
 function Chip({
   on,
+  off,
   onClick,
   children,
   className,
 }: {
   on: boolean;
+  off?: boolean; // excluded
   onClick: () => void;
   children: React.ReactNode;
   className?: string;
@@ -476,12 +570,14 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={on ? true : off ? "mixed" : false}
       className={cn(
         "chip transition",
-        on ? "bg-riso-blue/15" : "opacity-60 hover:opacity-100",
+        on ? "bg-riso-blue/15" : off ? "bg-riso-pink/15 line-through decoration-2" : "opacity-60 hover:opacity-100",
         className,
       )}
     >
+      {off && <span aria-hidden="true">not</span>}
       {children}
     </button>
   );

@@ -21,6 +21,10 @@ export function viewQueryToParams(v: ViewQuery): URLSearchParams {
   if (v.favOnly) p.set("fav", "1");
   if (v.minRating) p.set("rating", String(v.minRating));
   if (v.sort && v.sort !== "added") p.set("sort", v.sort);
+  if (v.notStatus?.length) p.set("nstatus", v.notStatus.join(","));
+  if (v.notTagIds?.length) p.set("ntags", v.notTagIds.join(","));
+  if (v.added) p.set("added", v.added);
+  if (v.finishedYear) p.set("fyear", String(v.finishedYear));
   return p;
 }
 
@@ -46,6 +50,10 @@ export function paramsToViewQuery(
     favOnly: get("fav") === "1" || undefined,
     minRating: get("rating") ? Number(get("rating")) : undefined,
     sort: get("sort") || undefined,
+    notStatus: csv("nstatus") as ReadStatus[],
+    notTagIds: csv("ntags"),
+    added: (["30d", "year", "lastyear"] as const).find((x) => x === get("added")),
+    finishedYear: get("fyear") ? Number(get("fyear")) : undefined,
   };
 }
 

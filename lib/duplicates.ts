@@ -44,6 +44,8 @@ export function duplicateGroups(books: Book[]): Book[][] {
   }
   return [...map.values()]
     .filter((g) => g.length > 1)
+    // Copies you've already marked as editions of one work aren't duplicates.
+    .filter((g) => !(g[0].work_id && g.every((b) => b.work_id === g[0].work_id)))
     .map((g) =>
       [...g].sort((a, b) => a.created_at.localeCompare(b.created_at)),
     )
@@ -67,4 +69,26 @@ export function findExisting(
     candidate.authors,
   );
   return books.find((b) => dedupKey(b) === k) ?? null;
+}
+
+// ---- Editions ---------------------------------------------------------
+// The same *work* regardless of edition: normalised title (no subtitle or
+// bracketed notes) + first author's surname.
+export function workKey(title: string, authors: string[]): string {
+  const t = (title ?? "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .split(":")[0]
+    .replace(/^(the|a|an)\s+/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const a = (authors?.[0] ?? "").trim().toLowerCase().split(/\s+/).pop() ?? "";
+  return `${t}|${a}`;
+}
+
+// Other books in the library that look like a different edition of this one
+// (same work, different ISBN / record) — candidates to link as editions.
+export function otherEditions(books: Book[], book: Pick<Book, "id" | "title" | "authors">): Book[] {
+  const k = workKey(book.title, book.authors);
+  return books.filter((b) => b.id !== book.id && workKey(b.title, b.authors) === k);
 }

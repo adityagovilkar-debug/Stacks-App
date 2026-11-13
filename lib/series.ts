@@ -10,6 +10,7 @@ export interface SeriesGroup {
   missing: number[]; // integer gaps from 1 up to the highest owned volume
   total: number;
   readCount: number;
+  wanted: number; // wishlist volumes
 }
 
 function normName(s: string): string {
@@ -58,6 +59,7 @@ export function seriesGroups(books: Book[]): SeriesGroup[] {
       missing,
       total: sorted.length,
       readCount: sorted.filter((b) => b.read_status === "read").length,
+      wanted: sorted.filter((b) => b.ownership === "wishlist").length,
     });
   }
 

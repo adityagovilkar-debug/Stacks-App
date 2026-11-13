@@ -287,7 +287,7 @@ h1, h2, h3, h4, h5, h6 {
    screen: hide the floating Log button and lift the timer pill above it. */
 @media (max-width: 1023px) {
   html[data-sharebar] .js-fab { display: none; }
-  html[data-sharebar] .js-timer { bottom: 10.5rem; }
+  html[data-sharebar] .js-timer { bottom: 13.5rem; }
 }
 
 /* Thin, unobtrusive scrollbars */

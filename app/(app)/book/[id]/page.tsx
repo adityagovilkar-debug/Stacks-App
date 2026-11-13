@@ -48,6 +48,9 @@ import { QuotesSection } from "@/components/QuotesSection";
 import { ReadThroughsSection } from "@/components/ReadThroughsSection";
 import { LoanSection } from "@/components/LoanSection";
 import { ReadingHistory } from "@/components/ReadingHistory";
+import { RecommendationsSection } from "@/components/RecommendationsSection";
+import { EditionsSection } from "@/components/EditionsSection";
+import { authorHref } from "@/lib/authors";
 import {
   FORMAT_LABEL,
   OWNERSHIP_LABEL,
@@ -187,7 +190,14 @@ export default function BookDetailPage() {
             )}
             {book.authors?.length > 0 && (
               <p className="mt-1 text-base font-semibold">
-                {book.authors.join(", ")}
+                {book.authors.map((a, i) => (
+                  <span key={a}>
+                    {i > 0 ? ", " : ""}
+                    <Link href={authorHref(a)} className="decoration-riso-pink decoration-2 underline-offset-4 hover:underline">
+                      {a}
+                    </Link>
+                  </span>
+                ))}
               </p>
             )}
             {book.series_name && (
@@ -435,6 +445,12 @@ export default function BookDetailPage() {
 
       {/* Lending */}
       <LoanSection book={book} />
+
+      {/* Who recommended it / who you told */}
+      <RecommendationsSection bookId={book.id} />
+
+      {/* Other editions (linked, or ones that look like the same work) */}
+      <EditionsSection book={book} />
 
       {/* Quotes / highlights */}
       <QuotesSection bookId={book.id} />

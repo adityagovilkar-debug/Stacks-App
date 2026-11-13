@@ -33,9 +33,13 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  // Match whole segments: a bare startsWith("/auth") would also make
+  // "/authors" public.
   const isPublic =
-    path.startsWith("/login") ||
-    path.startsWith("/auth") ||
+    path === "/login" ||
+    path.startsWith("/login/") ||
+    path === "/auth" ||
+    path.startsWith("/auth/") ||
     path.startsWith("/_next") ||
     path === "/manifest.webmanifest";
 

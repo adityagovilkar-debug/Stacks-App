@@ -10,6 +10,7 @@ import { WrappedShareCard } from "@/components/WrappedShareCard";
 import { useAllReadThroughs, useSessions } from "@/lib/queries";
 import { availableYears, wrappedStats } from "@/lib/wrapped";
 import { cn } from "@/lib/utils";
+import { authorHref } from "@/lib/authors";
 
 export default function WrappedPage() {
   const { data: sessions = [] } = useSessions();
@@ -148,7 +149,7 @@ export default function WrappedPage() {
                 <ul className="space-y-1.5">
                   {w.topAuthors.map((a) => (
                     <li key={a.name} className="flex items-center justify-between text-sm">
-                      <span className="font-semibold">{a.name}</span>
+                      <Link href={authorHref(a.name)} className="font-semibold hover:underline">{a.name}</Link>
                       <span className="chip bg-surface-2">{a.count}</span>
                     </li>
                   ))}

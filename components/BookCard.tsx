@@ -48,6 +48,11 @@ export function BookCard({
             <ListChecks className="h-3 w-3" /> Queued
           </span>
         )}
+        {book.ownership === "wishlist" && !selectable && (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full border-2 border-outline bg-riso-pink px-1.5 py-0.5 text-[0.6rem] font-extrabold text-white">
+            Wanted
+          </span>
+        )}
         {selectable && (
           <span
             className={cn(

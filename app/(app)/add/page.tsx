@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -8,9 +8,9 @@ import { ScanLine, Keyboard, Search, Check, Loader2, CopyCheck } from "lucide-re
 import { BookForm } from "@/components/BookForm";
 import { IsbnScanner } from "@/components/IsbnScanner";
 import { BookCover } from "@/components/BookCover";
-import { useAddBook, useBooks, useTags } from "@/lib/queries";
+import { useAddBook, useBooks, useSetEdition, useTags } from "@/lib/queries";
 import { cleanIsbn, lookupIsbn, searchBooks, type BookLookup } from "@/lib/lookup";
-import { findExisting } from "@/lib/duplicates";
+import { findExisting, otherEditions } from "@/lib/duplicates";
 import { matchGenreTags } from "@/lib/genres";
 import { emptyBookInput, type Book, type BookInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ function lookupToInput(l: BookLookup): BookInput {
 export default function AddPage() {
   const router = useRouter();
   const add = useAddBook();
+  const setEdition = useSetEdition();
   const { data: books = [] } = useBooks();
   const { data: tags = [] } = useTags();
 
@@ -113,8 +114,26 @@ export default function AddPage() {
     }
   }
 
-  async function runSearch() {
-    const q = query.trim();
+  // /add?search=Ursula+Le+Guin (from an author page) opens title search with
+  // that query already run. /add?wish=1 starts a manual entry on the wishlist.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get("search");
+    if (s) {
+      setMode("search");
+      setScanning(false);
+      setQuery(s);
+      runSearch(s);
+    } else if (p.get("wish")) {
+      setMode("manual");
+      setScanning(false);
+      setValue({ ...emptyBookInput(), ownership: "wishlist" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function runSearch(override?: string) {
+    const q = (override ?? query).trim();
     if (q.length < 2) return;
     setSearching(true);
     setValue(null);
@@ -134,10 +153,25 @@ export default function AddPage() {
     setResults(null);
   }
 
+  // Another edition of a book you already own (same title + author, but not
+  // the same record)? Offer to link them as editions of one work.
+  const exact = value ? findExisting(books, value) : null;
+  const otherEdition =
+    value && value.title.trim() && !exact
+      ? (otherEditions(books, { id: "", title: value.title, authors: value.authors })[0] ?? null)
+      : null;
+  const [linkEdition, setLinkEdition] = useState(true);
+
   async function saveForm() {
     if (!value?.title.trim()) return toast.error("A title is required");
     try {
-      const id = await add.mutateAsync(value);
+      let input = value;
+      if (otherEdition && linkEdition) {
+        const workId = otherEdition.work_id ?? crypto.randomUUID();
+        input = { ...value, work_id: workId };
+        if (!otherEdition.work_id) await setEdition.mutateAsync({ ids: [otherEdition.id], workId });
+      }
+      const id = await add.mutateAsync(input);
       toast.success("Added to your library");
       router.push(`/book/${id}`);
     } catch (e) {
@@ -147,7 +181,24 @@ export default function AddPage() {
 
   const reviewCard = value ? (
     <div className="card p-5">
-      <DupWarning existing={findExisting(books, value)} />
+      <DupWarning existing={exact} />
+      {otherEdition && (
+        <label className="mb-4 flex items-start gap-2 rounded-xl border-2 border-outline bg-riso-blue/10 px-3 py-2.5 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-riso-blue"
+            checked={linkEdition}
+            onChange={(e) => setLinkEdition(e.target.checked)}
+          />
+          <span>
+            You have another edition of this —{" "}
+            <Link href={`/book/${otherEdition.id}`} className="font-bold text-riso-blue underline">
+              {otherEdition.title}
+            </Link>
+            . Link them as editions of one book.
+          </span>
+        </label>
+      )}
       <BookForm value={value} onChange={setValue} />
       <button className="btn-primary mt-5 w-full" onClick={saveForm} disabled={add.isPending}>
         {add.isPending ? "Saving…" : "Add to library"}
@@ -271,7 +322,7 @@ export default function AddPage() {
               placeholder="Title, author, or keywords…"
               autoFocus
             />
-            <button className="btn-primary shrink-0" onClick={runSearch} disabled={searching}>
+            <button className="btn-primary shrink-0" onClick={() => runSearch()} disabled={searching}>
               {searching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
               Search
             </button>

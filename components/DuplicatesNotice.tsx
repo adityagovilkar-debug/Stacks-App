@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Copy, Trash2, X, ChevronDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { BookCover } from "./BookCover";
-import { useDeleteBook } from "@/lib/queries";
+import { useArchiveBook, useRestoreBook, useSetEdition } from "@/lib/queries";
 import { duplicateGroups } from "@/lib/duplicates";
 import type { Book } from "@/lib/types";
 
@@ -15,7 +15,9 @@ import type { Book } from "@/lib/types";
 // have different ISBNs and won't appear here.
 export function DuplicatesNotice({ books }: { books: Book[] }) {
   const groups = useMemo(() => duplicateGroups(books), [books]);
-  const del = useDeleteBook();
+  const archive = useArchiveBook();
+  const restore = useRestoreBook();
+  const setEdition = useSetEdition();
   const [dismissed, setDismissed] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -23,9 +25,14 @@ export function DuplicatesNotice({ books }: { books: Book[] }) {
 
   const extra = groups.reduce((n, g) => n + (g.length - 1), 0);
 
+  // Removing a copy archives it (Settings → Removed books), with Undo here.
   function remove(b: Book) {
-    if (!confirm(`Delete this copy of “${b.title}”? This can't be undone.`)) return;
-    del.mutate(b.id, { onSuccess: () => toast.success("Copy removed") });
+    archive.mutate(b.id, {
+      onSuccess: () =>
+        toast.success("Copy removed", {
+          action: { label: "Undo", onClick: () => restore.mutate(b.id) },
+        }),
+    });
   }
 
   return (
@@ -68,12 +75,28 @@ export function DuplicatesNotice({ books }: { books: Book[] }) {
           </p>
           {groups.map((g) => (
             <div key={g[0].id}>
-              <p className="mb-1.5 text-sm font-bold">
-                {g[0].title}
-                {g[0].authors[0] ? (
-                  <span className="font-normal text-text-muted"> · {g[0].authors[0]}</span>
-                ) : null}
-              </p>
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold">
+                  {g[0].title}
+                  {g[0].authors[0] ? (
+                    <span className="font-normal text-text-muted"> · {g[0].authors[0]}</span>
+                  ) : null}
+                </p>
+                <button
+                  className="chip"
+                  onClick={() =>
+                    setEdition.mutate(
+                      {
+                        ids: g.map((b) => b.id),
+                        workId: g.find((b) => b.work_id)?.work_id ?? crypto.randomUUID(),
+                      },
+                      { onSuccess: () => toast.success("Marked as editions of one book") },
+                    )
+                  }
+                >
+                  They&apos;re different editions
+                </button>
+              </div>
               <ul className="space-y-1.5">
                 {g.map((b, i) => (
                   <li

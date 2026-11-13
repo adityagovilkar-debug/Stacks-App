@@ -98,6 +98,7 @@ export interface Book {
   finished_on: string | null;
   queue_position: number | null; // null = not in the to-read queue
   archived_at: string | null; // set = removed from library (history kept)
+  work_id?: string | null; // shared by editions of the same work (migration 0010)
   created_at: string;
   updated_at: string;
   // joined / computed client-side
@@ -138,6 +139,7 @@ export interface BookInput {
   review: string | null;
   started_on: string | null;
   finished_on: string | null; // empty while Read = "don't remember when"
+  work_id?: string | null; // set when added as another edition
   // chosen tag + collection ids (reconciled into join tables on save)
   tag_ids: string[];
   collection_ids: string[];
@@ -184,6 +186,22 @@ export interface Quote {
   note: string | null;
   created_at: string;
   // joined
+  book?: Pick<Book, "id" | "title" | "authors" | "cover_url">;
+}
+
+// Recommendations ledger: who recommended a book to you (from), and who
+// you recommended / shared it with (to).
+export type RecDirection = "from" | "to";
+export interface Recommendation {
+  id: string;
+  user_id: string;
+  book_id: string;
+  person: string;
+  direction: RecDirection;
+  on_date: string;
+  channel: string | null;
+  note: string | null;
+  created_at: string;
   book?: Pick<Book, "id" | "title" | "authors" | "cover_url">;
 }
 
@@ -275,6 +293,11 @@ export interface ViewQuery {
   favOnly?: boolean;
   minRating?: number;
   sort?: string;
+  // Exclusions + date rules
+  notStatus?: ReadStatus[];
+  notTagIds?: string[];
+  added?: "30d" | "year" | "lastyear";
+  finishedYear?: number; // has a read finished in this year
 }
 
 export interface SavedView {

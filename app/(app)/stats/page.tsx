@@ -46,6 +46,7 @@ import {
 } from "@/lib/stats";
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { authorHref } from "@/lib/authors";
 
 const RISO = ["#0b63f6", "#ff4f9a", "#ffd23f", "#ff6f3c", "#7b5cff"];
 const RANGES: { key: string; label: string; days: number; g: Granularity }[] = [
@@ -366,7 +367,7 @@ export default function StatsPage() {
               const max = authors[0].count;
               return (
                 <li key={a.name} className="flex items-center gap-3">
-                  <span className="w-36 shrink-0 truncate text-sm font-semibold">{a.name}</span>
+                  <Link href={authorHref(a.name)} className="w-36 shrink-0 truncate text-sm font-semibold hover:underline">{a.name}</Link>
                   <div className="h-4 flex-1 overflow-hidden rounded-full border-2 border-outline bg-surface-2">
                     <div
                       className="h-full rounded-full bg-riso-purple"

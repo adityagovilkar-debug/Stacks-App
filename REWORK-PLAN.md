@@ -164,6 +164,31 @@ Suggestions only. For anything that changes how a page looks I'd make a mockup f
   - Rest days per week (0–3) in Settings → Reading goals; streaks honour them.
   - Tests: parser / streak / pace checks run from a scratch script (18 pass); move
     into a real test suite in Phase 5.
-- **Next: Phase 3** (library depth), or Phase 4 UI mockups — his call.
+- Phase 4 mockups shown 2026-11-13 on a design canvas
+  (https://claude.ai/artifact/FkH4Ani3TSeAVss45Sgvxu) and approved ("Good"); build after Phase 3.
+- **Phase 3 — done 2026-11-13.** Needs migration `0010_editions_and_recommendations.sql`.
+  - Authors index (`/authors`) + author pages (`/authors/[name]`): books, read count, avg
+    rating, series + gaps, who recommended them, "Find more by …" (opens title search).
+    Author names link from the book page, Progress and Wrapped; palette finds authors.
+  - Series: tap a missing volume to put it on your wishlist (placeholder book); wanted
+    volumes show dashed with a WANTED tag and close the gap.
+  - Wishlist page (`/wishlist`) with "Found it" → Owned (+ optional shelf), keeping
+    tags/notes/quotes/recommendations. `/add?wish=1` starts a wishlist entry.
+    Library cards show a "Wanted" badge.
+  - Recommendations ledger (`/recommendations`, table `recommendations`, direction
+    from/to): per-book section; the share bar's "Who's it for?" logs each shared book.
+  - Editions (`books.work_id`): book-page Editions section (linked + look-alike
+    candidates to Link/Unlink); duplicates panel "They're different editions"; adding a
+    book that matches another edition offers to link. Linked editions aren't flagged as
+    duplicates. Removing a duplicate copy now archives (Undo) per decision B.
+  - Smart shelves: status and tag chips are tri-state (include / exclude), plus
+    "Added" (30 days / this year / last year) and "Finished reading in <year>" (from reads).
+    All saved in shelves and the URL.
+  - Shelf map rebuilt: location tree with nested counts, open a shelf (optionally with
+    the shelves inside it), "where is…?" search, move a whole shelf's books at once.
+  - Bug found while verifying: the login guard's `startsWith("/auth")` made `/authors`
+    public (RLS still returned nothing). Fixed to whole-segment matching.
+  - Logic checks: 9/9 pass (scratch script; into the test suite in Phase 5).
+- **Next: Phase 4** (build the approved mockups).
 - Phase 5 note: `eslint` reports 13 "setState inside an effect" style errors (mostly
   older code). The build ignores them; tidy them in Phase 5.

@@ -27,6 +27,7 @@ const TABLES = [
   "loans",
   "read_throughs",
   "book_notes",
+  "recommendations",
 ] as const;
 type TableName = (typeof TABLES)[number];
 
@@ -43,6 +44,7 @@ const KEYS: Record<TableName, string[]> = {
   loans: ["id"],
   read_throughs: ["id"],
   book_notes: ["id"],
+  recommendations: ["id"],
 };
 
 type Row = Record<string, unknown>;

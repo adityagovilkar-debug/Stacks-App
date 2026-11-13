@@ -22,10 +22,15 @@ import {
   Bookmark,
   Layers,
   HandHelping,
+  Users,
+  Gift,
+  MessageSquareHeart,
+  UserRound,
   Dice5,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useBooks, useTags, useCollections, useSavedViews, useQuotes } from "@/lib/queries";
+import { authorHref, authorIndex } from "@/lib/authors";
 import { COMMAND_EVENT, openLogSession } from "@/lib/events";
 import { libraryHref } from "@/lib/viewQuery";
 import { cn } from "@/lib/utils";
@@ -59,7 +64,10 @@ const PAGES: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Add a book", href: "/add", icon: ScanLine },
   { label: "Reading queue", href: "/queue", icon: ListChecks },
   { label: "What next? (pick a book)", href: "/next", icon: Dice5 },
+  { label: "Authors", href: "/authors", icon: Users },
   { label: "Series", href: "/series", icon: Layers },
+  { label: "Wishlist", href: "/wishlist", icon: Gift },
+  { label: "Recommendations", href: "/recommendations", icon: MessageSquareHeart },
   { label: "Lending desk", href: "/lending", icon: HandHelping },
   { label: "Reading log", href: "/log", icon: NotebookPen },
   { label: "Progress / stats", href: "/stats", icon: BarChart3 },
@@ -156,6 +164,18 @@ export function CommandPalette() {
           sub: b.authors?.join(", "),
           icon: BookIcon,
           run: () => go(`/book/${b.id}`),
+        });
+    }
+    for (const a of authorIndex(books)) {
+      if (out.length > 75) break;
+      if (match(a.name))
+        out.push({
+          id: "a-" + a.name,
+          group: "Authors",
+          label: a.name,
+          sub: `${a.books.length} book${a.books.length === 1 ? "" : "s"}`,
+          icon: UserRound,
+          run: () => go(authorHref(a.name)),
         });
     }
     for (const v of savedViews)
