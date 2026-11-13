@@ -6,7 +6,7 @@ import {
   Flame,
   BookOpen,
   ScanLine,
-  ListChecks,
+  Dice5,
   ArrowRight,
   Sparkles,
   Quote as QuoteIcon,
@@ -30,6 +30,8 @@ import {
   readingProgress,
   estimateTimeLeft,
   fmtDuration,
+  isAudiobook,
+  isLocationEbook,
 } from "@/lib/stats";
 import type { Book, ReadingSession } from "@/lib/types";
 
@@ -99,20 +101,20 @@ export default function DashboardPage() {
   const empty = books.length === 0;
 
   return (
-    <div className="space-y-7">
-      {/* Greeting */}
+    <div className="space-y-6">
+      {/* Greeting — one quiet line; the book you're reading leads */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-extrabold misreg">
+          <h1 className="font-display text-2xl font-extrabold misreg sm:text-3xl">
             {greeting}{firstName ? `, ${firstName}` : ""}
           </h1>
-          <p className="mt-1 text-text-muted">
+          <p className="mt-1 text-sm font-semibold text-text-muted">
             {streak > 0
-              ? `You're on a ${streak}-day reading streak. Keep it lit.`
+              ? `${streak}-day streak — keep it lit.`
               : "A few pages today is all it takes to start a streak."}
           </p>
         </div>
-        <button onClick={() => openLogSession()} className="btn-primary">
+        <button onClick={() => openLogSession()} className="btn-primary hidden lg:inline-flex">
           <BookOpen className="h-5 w-5" /> Log reading
         </button>
       </header>
@@ -130,80 +132,83 @@ export default function DashboardPage() {
         />
       ) : (
         <>
-          {/* Today + stats */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="card p-4 sm:col-span-1">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm font-bold">Today</span>
-                <span className="text-xs font-semibold text-text-muted">
-                  {pagesToday}/{goalPages} pp
-                </span>
-              </div>
-              <ProgressBar percent={todayPct} />
-              <p className="mt-2 text-xs text-text-muted">
-                {minsToday > 0 ? `${minsToday} min · ` : ""}
-                {goalMet
-                  ? "Daily goal met! 🎉"
-                  : `${Math.max(0, goalPages - pagesToday)} pages (or ${Math.max(0, goalMinutes - minsToday)} min) to your goal`}
-              </p>
+          {/* Now reading */}
+          {reading.length === 0 ? (
+            <p className="card-soft p-4 text-sm text-text-muted">
+              Nothing in progress.{" "}
+              <Link href="/queue" className="font-bold text-riso-blue">
+                Start something from your queue
+              </Link>{" "}
+              or{" "}
+              <Link href="/next" className="font-bold text-riso-blue">
+                let us pick one
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <NowReading book={reading[0]} sessions={sessions} />
+              {reading.length > 1 && (
+                <div className="space-y-2">
+                  {reading.slice(1).map((b) => (
+                    <AlsoReading key={b.id} book={b} />
+                  ))}
+                </div>
+              )}
             </div>
-            <StatTile icon={<Flame className="h-5 w-5 text-riso-orange" />} value={`${streak}`} label="day streak" />
-            <StatTile icon={<Sparkles className="h-5 w-5 text-riso-pink" />} value={`${booksThisYear}`} label={`read in ${year}`} />
-          </div>
+          )}
 
-          {/* Currently reading */}
-          <section>
-            <SectionHead title="Continue reading" />
-            {reading.length === 0 ? (
-              <p className="card-soft p-4 text-sm text-text-muted">
-                Nothing in progress.{" "}
-                <Link href="/queue" className="font-bold text-riso-blue">
-                  Start something from your queue
-                </Link>
-                .
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {reading.map((b) => (
-                  <ReadingRow key={b.id} book={b} sessions={sessions} />
-                ))}
-              </div>
-            )}
-          </section>
+          {/* Today · streak · this year — one compact strip */}
+          <div className="grid grid-cols-3 gap-2.5">
+            <Link href="/stats" className="card flex flex-col items-center justify-center p-2.5 text-center pop-sm">
+              <span className="font-display text-2xl font-extrabold">
+                {pagesToday}
+                <span className="text-sm text-text-muted">/{goalPages}</span>
+              </span>
+              <span className="text-[0.7rem] font-bold text-text-muted">
+                {goalMet ? "goal met 🎉" : minsToday > 0 ? `pages · ${minsToday} min` : "pages today"}
+              </span>
+              <ProgressBar percent={todayPct} height={6} className="mt-1.5" />
+            </Link>
+            <Link href="/stats" className="card flex flex-col items-center justify-center p-2.5 text-center pop-sm">
+              <span className="flex items-center gap-1 font-display text-2xl font-extrabold text-riso-orange">
+                <Flame className="h-5 w-5" />
+                {streak}
+              </span>
+              <span className="text-[0.7rem] font-bold text-text-muted">day streak</span>
+            </Link>
+            <Link href="/wrapped" className="card flex flex-col items-center justify-center p-2.5 text-center pop-sm">
+              <span className="font-display text-2xl font-extrabold text-riso-pink">{booksThisYear}</span>
+              <span className="text-[0.7rem] font-bold text-text-muted">read in {year}</span>
+            </Link>
+          </div>
 
           {/* Up next + recently finished */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <section>
               <SectionHead title="Up next" href="/queue" />
-              {queue.length === 0 ? (
-                <p className="card-soft p-4 text-sm text-text-muted">
-                  Your queue is empty.{" "}
+              <div className="flex gap-2.5">
+                {queue.map((b) => (
+                  <Link key={b.id} href={`/book/${b.id}`} className="w-[17%] max-w-20 shrink-0" title={b.title}>
+                    <BookCover title={b.title} authors={b.authors} coverUrl={b.cover_url} />
+                  </Link>
+                ))}
+                <Link
+                  href="/next"
+                  className="flex aspect-[2/3] w-[17%] max-w-20 shrink-0 flex-col items-center justify-center rounded-lg border-[2.5px] border-dashed border-outline/50 p-1 text-center text-[0.65rem] font-bold text-text-muted hover:border-riso-pink hover:text-riso-pink"
+                >
+                  <Dice5 className="mb-1 h-5 w-5" />
+                  Surprise me
+                </Link>
+              </div>
+              {queue.length === 0 && (
+                <p className="mt-2 text-xs text-text-muted">
+                  Your queue is empty —{" "}
                   <Link href="/library" className="font-bold text-riso-blue">
-                    Queue a few books
-                  </Link>{" "}
-                  or{" "}
-                  <Link href="/next" className="font-bold text-riso-blue">
-                    let us pick one
+                    queue a few books
                   </Link>
                   .
                 </p>
-              ) : (
-                <ul className="space-y-2">
-                  {queue.map((b, i) => (
-                    <li key={b.id} className="card-soft flex items-center gap-3 p-2.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-outline bg-riso-yellow text-xs font-extrabold text-[#1a1430]">
-                        {i + 1}
-                      </span>
-                      <Link href={`/book/${b.id}`} className="w-8 shrink-0">
-                        <BookCover title={b.title} authors={b.authors} coverUrl={b.cover_url} />
-                      </Link>
-                      <Link href={`/book/${b.id}`} className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold">{b.title}</p>
-                        <p className="truncate text-xs text-text-muted">{b.authors.join(", ")}</p>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
               )}
             </section>
 
@@ -214,9 +219,9 @@ export default function DashboardPage() {
                   Finished books will show up here.
                 </p>
               ) : (
-                <div className="flex flex-wrap gap-3">
-                  {recent.map((b) => (
-                    <Link key={b.id} href={`/book/${b.id}`} className="w-16" title={b.title}>
+                <div className="flex gap-2.5">
+                  {recent.slice(0, 5).map((b) => (
+                    <Link key={b.id} href={`/book/${b.id}`} className="w-[17%] max-w-20 shrink-0" title={b.title}>
                       <BookCover title={b.title} authors={b.authors} coverUrl={b.cover_url} />
                     </Link>
                   ))}
@@ -262,7 +267,7 @@ function SectionHead({ title, href }: { title: string; href?: string }) {
     <div className="mb-3 flex items-center justify-between">
       <h2 className="font-display text-xl font-extrabold">{title}</h2>
       {href && (
-        <Link href={href} className="inline-flex items-center gap-1 text-sm font-bold text-riso-blue hover:underline">
+        <Link href={href} className="inline-flex min-h-11 items-center gap-1 text-sm font-bold text-riso-blue hover:underline">
           See all <ArrowRight className="h-4 w-4" />
         </Link>
       )}
@@ -270,66 +275,90 @@ function SectionHead({ title, href }: { title: string; href?: string }) {
   );
 }
 
-function StatTile({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return (
-    <div className="card flex flex-col items-center justify-center p-4 text-center">
-      <div className="flex items-center gap-1.5 font-display text-3xl font-extrabold">
-        {icon} {value}
-      </div>
-      <div className="text-xs font-bold text-text-muted">{label}</div>
-    </div>
-  );
-}
-
-function ReadingRow({ book, sessions }: { book: Book; sessions: ReadingSession[] }) {
+// The book you're reading, front and centre: progress, time left, and
+// "now on page ✓" right there.
+function NowReading({ book, sessions }: { book: Book; sessions: ReadingSession[] }) {
   const progress = readingProgress(book);
   const estimate = estimateTimeLeft(book, sessions);
   const left =
     estimate && estimate.unitsLeft > 0 && estimate.minutesLeft != null
       ? fmtDuration(estimate.minutesLeft)
       : null;
+  const where = isAudiobook(book)
+    ? book.duration_minutes
+      ? `${fmtDuration(book.audio_position_minutes ?? 0)} of ${fmtDuration(book.duration_minutes)}`
+      : null
+    : isLocationEbook(book)
+      ? `loc. ${(book.current_location ?? 0).toLocaleString()} of ${book.total_locations?.toLocaleString()}`
+      : book.page_count
+        ? `p. ${book.current_page ?? 0} of ${book.page_count}`
+        : null;
+
   return (
-    <div className="card flex items-center gap-3 p-3">
-      <Link href={`/book/${book.id}`} className="w-12 shrink-0">
-        <BookCover title={book.title} authors={book.authors} coverUrl={book.cover_url} />
-      </Link>
-      <div className="min-w-0 flex-1">
-        <Link href={`/book/${book.id}`} className="block">
-          <p className="line-clamp-2 font-display text-sm font-bold leading-tight">
-            {book.title}
-          </p>
-          <p className="truncate text-xs text-text-muted">{book.authors.join(", ")}</p>
+    <section className="card p-3.5">
+      <div className="flex gap-3.5">
+        <Link href={`/book/${book.id}`} className="w-[84px] shrink-0">
+          <BookCover title={book.title} authors={book.authors} coverUrl={book.cover_url} />
         </Link>
-        {progress != null ? (
-          <div className="mt-1.5">
-            <ProgressBar percent={progress} height={8} color="var(--color-riso-orange)" />
-            <p className="mt-1 text-[0.65rem] font-semibold text-text-muted">
-              {progress}%{left ? ` · ≈${left} left` : ""}
-            </p>
-          </div>
-        ) : (
-          <div className="mt-1">
-            <StatusStamp status="reading" />
-          </div>
-        )}
-        <QuickLog book={book} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-[0.7rem] font-extrabold uppercase tracking-widest text-riso-pink">Now reading</span>
+          <Link href={`/book/${book.id}`} className="line-clamp-2 font-display text-xl font-extrabold leading-tight">
+            {book.title}
+          </Link>
+          <span className="truncate text-sm text-text-muted">{book.authors.join(", ")}</span>
+          {progress != null ? (
+            <>
+              <ProgressBar percent={progress} height={10} color="var(--color-riso-orange)" className="mt-1" />
+              <span className="text-xs font-semibold text-text-muted">
+                {[where, `${progress}%`, left ? `≈${left} left` : null].filter(Boolean).join(" · ")}
+              </span>
+            </>
+          ) : (
+            <StatusStamp status="reading" className="mt-1 w-fit" />
+          )}
+        </div>
       </div>
-      <div className="flex shrink-0 flex-col gap-1">
-        <button
-          onClick={() => openLogSession(book)}
-          className="rounded-lg border-2 border-outline bg-riso-blue p-2 text-white pop-sm"
-          aria-label="Log reading"
-        >
-          <BookOpen className="h-4 w-4" />
-        </button>
+      <div className="mt-3 flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <QuickLog book={book} wide />
+        </div>
         <button
           onClick={() => startTimer({ id: book.id, title: book.title })}
-          className="rounded-lg border-2 border-outline bg-surface p-2 text-text"
+          className="btn-outline h-11 min-h-0 w-11 shrink-0 p-0"
           aria-label="Start timer"
         >
-          <TimerIcon className="h-4 w-4" />
+          <TimerIcon className="h-5 w-5" />
+        </button>
+        <button
+          onClick={() => openLogSession(book)}
+          className="btn-outline h-11 min-h-0 w-11 shrink-0 p-0"
+          aria-label="Log with details"
+        >
+          <BookOpen className="h-5 w-5" />
         </button>
       </div>
+    </section>
+  );
+}
+
+// Any other books in progress: one slim row each.
+function AlsoReading({ book }: { book: Book }) {
+  const progress = readingProgress(book);
+  return (
+    <div className="card-soft flex items-center gap-3 p-2.5">
+      <Link href={`/book/${book.id}`} className="w-9 shrink-0">
+        <BookCover title={book.title} authors={book.authors} coverUrl={book.cover_url} />
+      </Link>
+      <Link href={`/book/${book.id}`} className="min-w-0 flex-1">
+        <p className="truncate font-display text-sm font-extrabold">{book.title}</p>
+        <p className="text-xs text-text-muted">Also reading{progress != null ? ` · ${progress}%` : ""}</p>
+      </Link>
+      <button
+        onClick={() => openLogSession(book)}
+        className="min-h-11 px-2 text-sm font-bold text-riso-blue"
+      >
+        Log
+      </button>
     </div>
   );
 }

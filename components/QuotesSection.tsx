@@ -95,7 +95,7 @@ export function QuotesSection({ bookId }: { bookId: string }) {
           {quotes.map((q) => (
             <li
               key={q.id}
-              className="relative rounded-xl border-l-4 border-riso-purple bg-surface-2 py-2.5 pl-4 pr-10"
+              className="relative rounded-xl border-l-4 border-riso-purple bg-surface-2 py-2.5 pl-4 pr-12"
             >
               <p className="font-display text-[0.95rem] italic leading-snug">
                 “{q.text}”
@@ -110,7 +110,7 @@ export function QuotesSection({ bookId }: { bookId: string }) {
               <button
                 onClick={() => del.mutate(q.id)}
                 aria-label="Delete quote"
-                className="absolute right-2 top-2 rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-pink"
+                className="tap absolute right-2 top-2 rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-pink"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

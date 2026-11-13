@@ -20,7 +20,17 @@ type Entry =
 
 // A book's reading journal: logged sessions and notes made while reading, in
 // one timeline, newest first.
-export function ReadingHistory({ book, sessions }: { book: Book; sessions: ReadingSession[] }) {
+export function ReadingHistory({
+  book,
+  sessions,
+  mode = "all",
+}: {
+  book: Book;
+  sessions: ReadingSession[];
+  // "notes" = notes while reading (with the note box); "sessions" = logged
+  // sessions only; "all" = both in one timeline.
+  mode?: "all" | "notes" | "sessions";
+}) {
   const { data: notes = [] } = useBookNotes(book.id);
   const addNotes = useAddBookNotes();
   const delNote = useDeleteBookNote();
@@ -33,11 +43,11 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
 
   const entries = useMemo<Entry[]>(() => {
     const out: Entry[] = [
-      ...sessions.map((s) => ({ kind: "session" as const, date: s.happened_on, at: s.created_at, s })),
-      ...notes.map((n) => ({ kind: "note" as const, date: n.noted_on, at: n.created_at, n })),
+      ...(mode === "notes" ? [] : sessions).map((s) => ({ kind: "session" as const, date: s.happened_on, at: s.created_at, s })),
+      ...(mode === "sessions" ? [] : notes).map((n) => ({ kind: "note" as const, date: n.noted_on, at: n.created_at, n })),
     ];
     return out.sort((a, b) => b.date.localeCompare(a.date) || b.at.localeCompare(a.at));
-  }, [sessions, notes]);
+  }, [sessions, notes, mode]);
 
   async function addNote() {
     const body = noteText.trim();
@@ -62,9 +72,12 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
 
   return (
     <section className="card p-5">
-      <h2 className="mb-3 font-display text-lg font-extrabold">Reading history</h2>
+      <h2 className="mb-3 font-display text-lg font-extrabold">
+        {mode === "notes" ? "Notes while reading" : "Reading history"}
+      </h2>
 
       {/* Quick note while reading */}
+      {mode !== "sessions" && (
       <div className="mb-4 flex flex-wrap gap-2 rounded-xl border-2 border-outline bg-surface-2 p-2.5">
         <input
           className="input min-w-0 flex-1"
@@ -86,10 +99,13 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
           <Plus className="h-4 w-4" /> Note
         </button>
       </div>
+      )}
 
       {entries.length === 0 ? (
         <p className="text-sm text-text-muted">
-          No sessions yet. Hit “Log reading” to start tracking your progress.
+          {mode === "notes"
+            ? "No notes yet. Jot a thought as you read — it lands here with the date and page."
+            : "No sessions yet. Hit “Log reading” to start tracking your progress."}
         </p>
       ) : (
         <ul className="divide-y-2 divide-border">
@@ -107,7 +123,7 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
                 <button
                   onClick={() => delNote.mutate(e.n.id)}
                   aria-label="Delete note"
-                  className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+                  className="tap rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -151,14 +167,14 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
                     })
                   }
                   aria-label="Edit session"
-                  className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
+                  className="tap rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => delSession.mutate(e.s.id)}
                   aria-label="Delete session"
-                  className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+                  className="tap rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -167,6 +183,7 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
           )}
         </ul>
       )}
+      {mode !== "notes" && (
       <p className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
         <Clock className="h-3.5 w-3.5" />
         {audio
@@ -177,6 +194,7 @@ export function ReadingHistory({ book, sessions }: { book: Book; sessions: Readi
         {sessions.length} sessions
         {notes.length ? ` · ${notes.length} note${notes.length === 1 ? "" : "s"}` : ""}
       </p>
+      )}
     </section>
   );
 }

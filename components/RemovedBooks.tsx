@@ -6,6 +6,7 @@ import { RotateCcw, Trash2 } from "lucide-react";
 import { BookCover } from "./BookCover";
 import { useArchivedBooks, useDeleteBook, useRestoreBook } from "@/lib/queries";
 import { format, parseISO } from "date-fns";
+import { confirmSheet } from "@/lib/ask";
 
 // Settings → Removed books: put a removed book back, or delete it for good.
 export function RemovedBooks() {
@@ -47,11 +48,14 @@ export function RemovedBooks() {
           <button
             aria-label="Delete forever"
             className="rounded-lg p-2.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
-            onClick={() => {
+            onClick={async () => {
               if (
-                confirm(
-                  `Delete “${b.title}” forever?\n\nIts reading sessions, reads, quotes and loans are deleted too. This can't be undone.`,
-                )
+                await confirmSheet({
+                  title: `Delete “${b.title}” forever?`,
+                  body: "Its reading sessions, reads, quotes, notes and loans are deleted too. This can't be undone.",
+                  confirmLabel: "Delete forever",
+                  danger: true,
+                })
               )
                 del.mutate(b.id, { onSuccess: () => toast.success("Deleted forever") });
             }}

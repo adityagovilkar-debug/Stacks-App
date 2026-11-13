@@ -138,14 +138,14 @@ export default function LogPage() {
                         })
                       }
                       aria-label="Edit session"
-                      className="rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
+                      className="tap rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => del.mutate(s.id)}
                       aria-label="Delete"
-                      className="rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+                      className="tap rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

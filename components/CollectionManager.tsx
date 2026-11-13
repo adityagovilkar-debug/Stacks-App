@@ -10,6 +10,7 @@ import {
 } from "@/lib/queries";
 import { PALETTE, PALETTE_KEYS, palette, type PaletteKey } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { confirmSheet } from "@/lib/ask";
 
 export function CollectionManager() {
   const { data: collections = [] } = useCollections();
@@ -71,11 +72,19 @@ export function CollectionManager() {
                 <span className={cn("h-3 w-3 rounded-full", p.dot)} />
                 <span className="flex-1 text-sm font-bold">{c.name}</span>
                 <button
-                  onClick={() => {
-                    if (confirm(`Delete the “${c.name}” collection?`)) del.mutate(c.id);
+                  onClick={async () => {
+                    if (
+                      await confirmSheet({
+                        title: `Delete the “${c.name}” collection?`,
+                        body: "The books stay in your library; they just leave this collection.",
+                        confirmLabel: "Delete collection",
+                        danger: true,
+                      })
+                    )
+                      del.mutate(c.id);
                   }}
                   aria-label="Delete"
-                  className="rounded p-1 text-text-muted hover:text-riso-pink"
+                  className="tap rounded p-1 text-text-muted hover:text-riso-pink"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

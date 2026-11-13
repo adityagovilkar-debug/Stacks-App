@@ -89,7 +89,7 @@ export function ShareBar({ books, onClear }: { books: Book[]; onClear: () => voi
               <button
                 onClick={onClear}
                 aria-label="Clear selection"
-                className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-text"
+                className="tap rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-text"
               >
                 <X className="h-5 w-5" />
               </button>

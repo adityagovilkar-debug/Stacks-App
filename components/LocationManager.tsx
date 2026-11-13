@@ -11,6 +11,7 @@ import {
 import { locationOptions, buildPathMap, PATH_SEP } from "@/lib/locations";
 import type { Location } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { confirmSheet } from "@/lib/ask";
 
 // Nested location manager: add, rename, re-parent, or remove places.
 export function LocationManager() {
@@ -121,18 +122,25 @@ export function LocationManager() {
                   <button
                     onClick={() => startEdit(loc)}
                     aria-label={`Edit ${leaf}`}
-                    className="rounded p-1 text-text-muted hover:text-riso-blue"
+                    className="tap rounded p-1 text-text-muted hover:text-riso-blue"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (confirm(`Delete “${leaf}”? Books here become unshelved.`))
+                  onClick={async () => {
+                    if (
+                      await confirmSheet({
+                        title: `Delete “${leaf}”?`,
+                        body: "Books on it become unshelved, and shelves inside it become top-level locations.",
+                        confirmLabel: "Delete location",
+                        danger: true,
+                      })
+                    )
                       del.mutate(o.id);
                   }}
                   aria-label="Delete"
-                  className="rounded p-1 text-text-muted hover:text-riso-pink"
+                  className="tap rounded p-1 text-text-muted hover:text-riso-pink"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

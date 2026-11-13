@@ -264,7 +264,7 @@ export function CommandPalette() {
           <button
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="rounded p-1 text-text-muted hover:text-text"
+            className="tap rounded p-1 text-text-muted hover:text-text"
           >
             <X className="h-4 w-4" />
           </button>

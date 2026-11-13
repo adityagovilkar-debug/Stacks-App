@@ -14,6 +14,7 @@ import {
   type TagKind,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { confirmSheet } from "@/lib/ask";
 
 const KINDS: TagKind[] = ["genre", "mood", "theme", "tag"];
 
@@ -139,8 +140,15 @@ export function TagManager() {
                         <Pencil className="h-3 w-3" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`Delete the “${t.name}” tag? It will be removed from all books.`))
+                        onClick={async () => {
+                          if (
+                            await confirmSheet({
+                              title: `Delete the “${t.name}” tag?`,
+                              body: "It's removed from every book that has it.",
+                              confirmLabel: "Delete tag",
+                              danger: true,
+                            })
+                          )
                             del.mutate(t.id);
                         }}
                         aria-label={`Delete ${t.name}`}

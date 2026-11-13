@@ -13,6 +13,7 @@ import {
   restoreBackup,
 } from "@/lib/backup";
 import { todayISO } from "@/lib/stats";
+import { confirmSheet } from "@/lib/ask";
 
 // Settings → Backup: everything to one JSON file, the library as CSV, and
 // restoring from a JSON backup.
@@ -55,12 +56,14 @@ export function BackupSection() {
       const n = backup.tables.books?.length ?? 0;
       const when = backup.exported_at?.slice(0, 10) ?? "unknown date";
       if (
-        !confirm(
-          `Restore this backup from ${when} (${n} books)?\n\n` +
-            "Everything in it is written back into Stacks. Books, sessions and " +
-            "reads that are in both the backup and the app are replaced by the " +
-            "backup's version. Nothing that is only in the app is deleted.",
-        )
+        !(await confirmSheet({
+          title: `Restore the backup from ${when}?`,
+          body:
+            `It holds ${n} books. Everything in it is written back into Stacks. Books, sessions and ` +
+            "reads that are in both the backup and the app are replaced by the backup's version. " +
+            "Nothing that is only in the app is deleted.",
+          confirmLabel: "Restore",
+        }))
       )
         return;
       setBusy("Restoring…");

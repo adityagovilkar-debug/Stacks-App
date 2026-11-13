@@ -56,7 +56,7 @@ export default function QuotesPage() {
                 <button
                   onClick={() => del.mutate(q.id)}
                   aria-label="Delete quote"
-                  className="shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+                  className="tap shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

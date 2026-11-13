@@ -4,8 +4,10 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search, SlidersHorizontal, X, BookPlus, Heart, Bookmark, Save, CheckSquare, Share2 } from "lucide-react";
+import { Search, SlidersHorizontal, X, BookPlus, Heart, Bookmark, Save, CheckSquare, Share2, MapPin } from "lucide-react";
 import { BookCard } from "@/components/BookCard";
+import { BookRow } from "@/components/BookRow";
+import { BookSpine, SPINE_ROW } from "@/components/BookSpine";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonGrid } from "@/components/Skeleton";
 import { DuplicatesNotice } from "@/components/DuplicatesNotice";
@@ -20,7 +22,7 @@ import {
   useAddSavedView,
   useDeleteSavedView,
 } from "@/lib/queries";
-import { locationOptions } from "@/lib/locations";
+import { buildPathMap, locationOptions } from "@/lib/locations";
 import { libraryHref, paramsToViewQuery } from "@/lib/viewQuery";
 import {
   FORMAT_LABEL,
@@ -35,6 +37,7 @@ import {
   type ViewQuery,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { confirmSheet, promptSheet } from "@/lib/ask";
 
 type Sort = "added" | "title" | "author" | "rating" | "year" | "pages";
 
@@ -45,6 +48,21 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: "rating", label: "Highest rated" },
   { key: "year", label: "Newest published" },
   { key: "pages", label: "Longest" },
+];
+
+type View = "grid" | "list" | "spines";
+type Group = "none" | "shelf" | "author" | "series" | "year";
+const VIEWS: { key: View; label: string }[] = [
+  { key: "grid", label: "Grid" },
+  { key: "list", label: "List" },
+  { key: "spines", label: "Spines" },
+];
+const GROUPS: { key: Group; label: string }[] = [
+  { key: "none", label: "No grouping" },
+  { key: "shelf", label: "Group: Shelf" },
+  { key: "author", label: "Group: Author" },
+  { key: "series", label: "Group: Series" },
+  { key: "year", label: "Group: Year read" },
 ];
 
 function toggle<T>(set: Set<T>, v: T): Set<T> {
@@ -88,6 +106,29 @@ function LibraryInner() {
   const [locationId, setLocationId] = useState(initial.locationId ?? "");
   const [favOnly, setFavOnly] = useState(initial.favOnly ?? false);
   const [minRating, setMinRating] = useState(initial.minRating ?? 0);
+  // How to show the books (this device remembers your choice).
+  const [view, setView] = useState<View>("grid");
+  const [group, setGroup] = useState<Group>("none");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("stacks-lib-view") as View | null;
+      const g = localStorage.getItem("stacks-lib-group") as Group | null;
+      if (v && VIEWS.some((x) => x.key === v)) setView(v);
+      if (g && GROUPS.some((x) => x.key === g)) setGroup(g);
+    } catch {}
+  }, []);
+  function pickView(v: View) {
+    setView(v);
+    try {
+      localStorage.setItem("stacks-lib-view", v);
+    } catch {}
+  }
+  function pickGroup(g: Group) {
+    setGroup(g);
+    try {
+      localStorage.setItem("stacks-lib-group", g);
+    } catch {}
+  }
   // Exclusions + date rules
   const [notStatus, setNotStatus] = useState<Set<ReadStatus>>(new Set(initial.notStatus));
   const [notTagIds, setNotTagIds] = useState<Set<string>>(new Set(initial.notTagIds));
@@ -259,13 +300,73 @@ function LibraryInner() {
     setFinishedYear(v.finishedYear);
   }
   async function saveView() {
-    const name = window.prompt("Name this shelf (e.g. “Unread sci-fi”)");
+    const name = await promptSheet({
+      title: "Save as a shelf",
+      body: "Keeps every filter you've set, so you can come back to it in one tap.",
+      input: { label: "Shelf name", placeholder: "e.g. Unread sci-fi" },
+      confirmLabel: "Save shelf",
+    });
     if (!name?.trim()) return;
     await addView.mutateAsync({ name: name.trim(), query: currentQuery() });
     toast.success(`Saved “${name.trim()}”`);
   }
 
   const kinds: TagKind[] = ["genre", "mood", "theme", "tag"];
+
+  // ---- Active filters as removable chips (so the panel can stay closed) ----
+  const tagName = new Map(tags.map((tg) => [tg.id, tg.name]));
+  const chips: { key: string; label: string; off?: boolean; remove: () => void }[] = [
+    ...(q ? [{ key: "q", label: `“${q}”`, remove: () => setQ("") }] : []),
+    ...[...status].map((s) => ({ key: "s" + s, label: READ_STATUS_LABEL[s], remove: () => setStatus(toggle(status, s)) })),
+    ...[...notStatus].map((s) => ({ key: "ns" + s, label: READ_STATUS_LABEL[s], off: true, remove: () => setNotStatus(toggle(notStatus, s)) })),
+    ...[...ownership].map((o) => ({ key: "o" + o, label: OWNERSHIP_LABEL[o], remove: () => setOwnership(toggle(ownership, o)) })),
+    ...[...formats].map((fm) => ({ key: "f" + fm, label: FORMAT_LABEL[fm], remove: () => setFormats(toggle(formats, fm)) })),
+    ...[...tagIds].map((id) => ({ key: "t" + id, label: tagName.get(id) ?? "tag", remove: () => setTagIds(toggle(tagIds, id)) })),
+    ...[...notTagIds].map((id) => ({ key: "nt" + id, label: tagName.get(id) ?? "tag", off: true, remove: () => setNotTagIds(toggle(notTagIds, id)) })),
+    ...(collectionId
+      ? [{ key: "c", label: collections.find((c) => c.id === collectionId)?.name ?? "Collection", remove: () => setCollectionId("") }]
+      : []),
+    ...(locationId
+      ? [{ key: "l", label: locations.find((l) => l.id === locationId)?.name ?? "Location", remove: () => setLocationId("") }]
+      : []),
+    ...(favOnly ? [{ key: "fav", label: "Favourites", remove: () => setFavOnly(false) }] : []),
+    ...(minRating ? [{ key: "r", label: `${minRating}★ and up`, remove: () => setMinRating(0) }] : []),
+    ...(added
+      ? [{ key: "a", label: added === "30d" ? "Added in 30 days" : added === "year" ? "Added this year" : "Added last year", remove: () => setAdded(undefined) }]
+      : []),
+    ...(finishedYear ? [{ key: "fy", label: `Finished in ${finishedYear}`, remove: () => setFinishedYear(undefined) }] : []),
+  ];
+
+  // ---- Grouping --------------------------------------------------------------
+  const paths = useMemo(() => buildPathMap(locations), [locations]);
+  const groups = useMemo(() => {
+    if (group === "none") return [{ key: "all", label: "", books: filtered }];
+    const map = new Map<string, { key: string; label: string; books: typeof filtered }>();
+    const put = (key: string, label: string, b: (typeof filtered)[number]) => {
+      const g = map.get(key) ?? { key, label, books: [] };
+      g.books.push(b);
+      map.set(key, g);
+    };
+    for (const b of filtered) {
+      if (group === "shelf") {
+        const p = b.location_id ? paths.get(b.location_id) : undefined;
+        put(p ?? "~", p ?? "Not shelved yet", b);
+      } else if (group === "author") {
+        const a = b.authors[0] ?? "";
+        put(a.toLowerCase() || "~", a || "No author", b);
+      } else if (group === "series") {
+        put(b.series_name?.toLowerCase() || "~", b.series_name || "Not in a series", b);
+      } else {
+        const y = b.finished_on?.slice(0, 4);
+        put(y ? String(9999 - Number(y)) : "~", y ? `Finished ${y}` : "Not finished", b);
+      }
+    }
+    const list = [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+    if (group === "series")
+      for (const g of list)
+        g.books = [...g.books].sort((a, b) => (a.series_index ?? 999) - (b.series_index ?? 999));
+    return list;
+  }, [filtered, group, paths]);
 
   return (
     <div className="space-y-5">
@@ -277,9 +378,27 @@ function LibraryInner() {
             {activeCount > 0 && ` · ${filtered.length} match`}
           </p>
         </div>
-        <Link href="/add" className="btn-primary">
-          <BookPlus className="h-5 w-5" /> Add
-        </Link>
+        <div className="flex items-center gap-2">
+          <div role="radiogroup" aria-label="View" className="inline-flex rounded-xl border-2 border-outline bg-surface-2 p-1">
+            {VIEWS.map((v) => (
+              <button
+                key={v.key}
+                role="radio"
+                aria-checked={view === v.key}
+                onClick={() => pickView(v.key)}
+                className={cn(
+                  "min-h-9 rounded-lg px-3 text-sm font-bold transition",
+                  view === v.key ? "bg-riso-blue text-white" : "text-text-muted hover:text-text",
+                )}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <Link href="/add" className="btn-primary hidden sm:inline-flex">
+            <BookPlus className="h-5 w-5" /> Add
+          </Link>
+        </div>
       </header>
 
       {!isLoading && <DuplicatesNotice books={books} />}
@@ -302,8 +421,16 @@ function LibraryInner() {
                 {v.name}
               </button>
               <button
-                onClick={() => {
-                  if (confirm(`Delete the “${v.name}” shelf?`)) delView.mutate(v.id);
+                onClick={async () => {
+                  if (
+                    await confirmSheet({
+                      title: `Delete the “${v.name}” shelf?`,
+                      body: "Only the saved filters go. Your books aren't touched.",
+                      confirmLabel: "Delete shelf",
+                      danger: true,
+                    })
+                  )
+                    delView.mutate(v.id);
                 }}
                 aria-label="Delete shelf"
                 className="text-text-muted hover:text-riso-pink"
@@ -337,6 +464,18 @@ function LibraryInner() {
             </option>
           ))}
         </select>
+        <select
+          className="select w-auto"
+          value={group}
+          onChange={(e) => pickGroup(e.target.value as Group)}
+          aria-label="Group by"
+        >
+          {GROUPS.map((g) => (
+            <option key={g.key} value={g.key}>
+              {g.label}
+            </option>
+          ))}
+        </select>
         <button
           className={cn("btn-outline", activeCount > 0 && "bg-riso-yellow text-[#1a1430]")}
           onClick={() => setShowFilters((s) => !s)}
@@ -352,6 +491,29 @@ function LibraryInner() {
           {selectMode ? "Done" : "Select"}
         </button>
       </div>
+
+      {chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              onClick={c.remove}
+              className={cn(
+                "chip min-h-9 gap-1.5",
+                c.off ? "bg-riso-pink/15 line-through decoration-2" : "bg-riso-blue/15",
+              )}
+              aria-label={`Remove filter ${c.off ? "not " : ""}${c.label}`}
+            >
+              {c.off && <span className="no-underline">not</span>}
+              {c.label}
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ))}
+          <button className="chip min-h-9 border-dashed text-text-muted" onClick={clearAll}>
+            Clear all
+          </button>
+        </div>
+      )}
 
       {selectMode && (
         <p className="flex items-center gap-1.5 text-sm font-semibold text-text-muted">
@@ -522,16 +684,55 @@ function LibraryInner() {
           }
         />
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-          {filtered.map((b) => (
-            <BookCard
-              key={b.id}
-              book={b}
-              selectable={selectMode}
-              selected={selected.has(b.id)}
-              onToggleSelect={() => setSelected((prev) => toggle(prev, b.id))}
-            />
-          ))}
+        <div className="space-y-7">
+          {groups.map((g) => {
+            const sel = (id: string) => ({
+              selectable: selectMode,
+              selected: selected.has(id),
+              onToggleSelect: () => setSelected((prev) => toggle(prev, id)),
+            });
+            return (
+              <section key={g.key}>
+                {g.label && (
+                  <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-extrabold">
+                    {group === "shelf" && <MapPin className="h-4 w-4 text-riso-orange" />}
+                    {g.label}
+                    <span className="chip bg-surface-2">{g.books.length}</span>
+                  </h2>
+                )}
+                {view === "grid" ? (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                    {g.books.map((b) => (
+                      <BookCard key={b.id} book={b} {...sel(b.id)} />
+                    ))}
+                  </div>
+                ) : view === "list" ? (
+                  <div>
+                    {g.books.map((b) => (
+                      <BookRow key={b.id} book={b} {...sel(b.id)} />
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className="flex flex-wrap items-end gap-x-[3px] gap-y-2 px-1 pb-2"
+                    style={{
+                      // A plank under every row of spines.
+                      backgroundImage: `repeating-linear-gradient(to bottom, transparent 0 ${SPINE_ROW}px, var(--outline) ${SPINE_ROW}px ${SPINE_ROW + 8}px)`,
+                    }}
+                  >
+                    {g.books.map((b) => (
+                      <BookSpine key={b.id} book={b} {...sel(b.id)} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+          {view === "spines" && (
+            <p className="text-center text-xs text-text-muted">
+              Spine width follows page count · pink ribbon = reading · dashed = wanted
+            </p>
+          )}
         </div>
       )}
 

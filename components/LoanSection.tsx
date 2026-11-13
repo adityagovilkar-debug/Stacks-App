@@ -13,6 +13,7 @@ import { todayISO } from "@/lib/stats";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { LOAN_DIRECTION_LABEL, type Book, type LoanDirection } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { confirmSheet } from "@/lib/ask";
 
 // Track who has a book (lent out) or who you owe it to (borrowed), so it comes
 // home. The active loan drives the book's ownership badge.
@@ -92,8 +93,16 @@ export function LoanSection({ book }: { book: Book }) {
             </button>
             <button
               className="btn-ghost text-riso-pink"
-              onClick={() => {
-                if (confirm("Delete this loan record?")) delLoan.mutate(active);
+              onClick={async () => {
+                if (
+                  await confirmSheet({
+                    title: "Delete this loan record?",
+                    body: "Use this if it was entered by mistake. If the book came back, use the return button instead.",
+                    confirmLabel: "Delete record",
+                    danger: true,
+                  })
+                )
+                  delLoan.mutate(active);
               }}
             >
               <Trash2 className="h-4 w-4" /> Delete
@@ -190,7 +199,7 @@ export function LoanSection({ book }: { book: Book }) {
                 <button
                   onClick={() => delLoan.mutate(l)}
                   aria-label="Delete loan record"
-                  className="shrink-0 rounded-lg p-1 text-text-muted hover:text-riso-pink"
+                  className="tap shrink-0 rounded-lg p-1 text-text-muted hover:text-riso-pink"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

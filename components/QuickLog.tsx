@@ -11,7 +11,7 @@ import type { Book } from "@/lib/types";
 // "I read today": type where you are now, tap ✓. Works out how much you read
 // from your bookmark. The full log sheet is still there for minutes, notes,
 // other dates.
-export function QuickLog({ book }: { book: Book }) {
+export function QuickLog({ book, wide = false }: { book: Book; wide?: boolean }) {
   const log = useLogSession();
   const [value, setValue] = useState("");
 
@@ -57,14 +57,14 @@ export function QuickLog({ book }: { book: Book }) {
 
   return (
     <form
-      className="mt-2 flex items-center gap-1.5"
+      className={wide ? "flex items-center gap-2" : "mt-2 flex items-center gap-1.5"}
       onSubmit={(e) => {
         e.preventDefault();
         save();
       }}
     >
       <input
-        className="input h-9 min-h-0 w-full max-w-[9rem] px-2.5 py-1 text-sm"
+        className={wide ? "input h-11 min-h-0 w-full px-3 py-1" : "input h-9 min-h-0 w-full max-w-[9rem] px-2.5 py-1 text-sm"}
         type="number"
         inputMode="numeric"
         value={value}
@@ -76,7 +76,7 @@ export function QuickLog({ book }: { book: Book }) {
         type="submit"
         disabled={!value || log.isPending}
         aria-label="Log it"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 border-outline bg-riso-yellow text-[#1a1430] pop-sm disabled:opacity-40"
+        className={(wide ? "h-11 w-11" : "h-9 w-9") + " flex shrink-0 items-center justify-center rounded-lg border-2 border-outline bg-riso-yellow text-[#1a1430] pop-sm disabled:opacity-40"}
       >
         <Check className="h-4 w-4" strokeWidth={3} />
       </button>

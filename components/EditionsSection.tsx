@@ -54,7 +54,7 @@ export function EditionsSection({ book }: { book: Book }) {
               <p className="truncate text-xs text-text-muted">{describe(b)}</p>
             </div>
             <button
-              className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+              className="tap rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
               aria-label="Unlink this edition"
               onClick={() => setEdition.mutate({ ids: [b.id], workId: null })}
             >

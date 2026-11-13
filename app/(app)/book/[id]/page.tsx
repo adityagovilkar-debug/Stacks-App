@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import {
   useBook,
   useBookSessions,
   useArchiveBook,
+  useDeleteBook,
   useRestoreBook,
   useLocations,
   usePatchBook,
@@ -48,6 +49,8 @@ import { QuotesSection } from "@/components/QuotesSection";
 import { ReadThroughsSection } from "@/components/ReadThroughsSection";
 import { LoanSection } from "@/components/LoanSection";
 import { ReadingHistory } from "@/components/ReadingHistory";
+import { QuickLog } from "@/components/QuickLog";
+import { chooseSheet } from "@/lib/ask";
 import { RecommendationsSection } from "@/components/RecommendationsSection";
 import { EditionsSection } from "@/components/EditionsSection";
 import { authorHref } from "@/lib/authors";
@@ -61,6 +64,14 @@ import {
 import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 
+type Tab = "reading" | "notes" | "details" | "history";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "reading", label: "Reading" },
+  { key: "notes", label: "Notes & quotes" },
+  { key: "details", label: "Details" },
+  { key: "history", label: "History" },
+];
+
 export default function BookDetailPage() {
   const router = useRouter();
   const id = useParams().id as string;
@@ -73,12 +84,27 @@ export default function BookDetailPage() {
   const readAgain = useReadAgain();
   const patch = usePatchBook();
   const archive = useArchiveBook();
+  const del = useDeleteBook();
   const restore = useRestoreBook();
   const addQ = useAddToQueue();
   const removeQ = useRemoveFromQueue();
 
   const [bookmark, setBookmark] = useState("");
   const [review, setReview] = useState("");
+  const [tab, setTab] = useState<Tab>("reading");
+
+  // Show the slim hero in the sticky bar once the big hero scrolls away.
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [heroGone, setHeroGone] = useState(false);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setHeroGone(!e.isIntersecting), {
+      rootMargin: "-110px 0px 0px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [book?.id]);
 
   // Re-sync the bookmark field whenever the saved position changes (e.g. after
   // logging a session with "now on page"), so it never shows a stale value.
@@ -135,9 +161,37 @@ export default function BookDetailPage() {
   }
   // Removing keeps the reading history; it can be undone here or restored
   // later from Settings → Removed books, where it can also be deleted forever.
-  function remove() {
+  async function remove() {
     const id = book!.id;
     const title = book!.title;
+    const choice = await chooseSheet({
+      title: `Remove “${title}”?`,
+      choices: [
+        {
+          value: "archive",
+          label: "Remove from library",
+          hint: "Hidden, but its sessions, reads and quotes stay in your stats. Put it back any time.",
+        },
+        {
+          value: "delete",
+          label: "Delete forever",
+          hint: "Also deletes its history. Can't be undone.",
+          danger: true,
+        },
+      ],
+      confirmLabel: "Remove",
+      cancelLabel: "Keep it",
+    });
+    if (!choice) return;
+    if (choice === "delete") {
+      del.mutate(id, {
+        onSuccess: () => {
+          toast.success(`Deleted “${title}” forever`);
+          router.push("/library");
+        },
+      });
+      return;
+    }
     archive.mutate(id, {
       onSuccess: () => {
         toast.success(`Removed “${title}” from your library`, {
@@ -170,7 +224,7 @@ export default function BookDetailPage() {
       )}
 
       {/* Hero */}
-      <div className="flex flex-col gap-5 sm:flex-row">
+      <div ref={heroRef} className="flex flex-col gap-5 sm:flex-row">
         <div className="w-40 shrink-0 self-center sm:self-start">
           <BookCover
             title={book.title}
@@ -209,7 +263,7 @@ export default function BookDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <StatusStamp status={book.read_status} timesRead={book.times_read} />
+            <StatusStamp key={book.read_status} status={book.read_status} timesRead={book.times_read} className="stamp-thunk" />
             <RatingStars
               value={book.rating}
               onChange={(v) => patch.mutate({ id: book.id, patch: { rating: v } })}
@@ -225,43 +279,34 @@ export default function BookDetailPage() {
             </button>
           </div>
 
-          {/* Status controls */}
-          <div className="flex flex-wrap gap-2">
+          {/* Status: one segmented control */}
+          <div
+            role="radiogroup"
+            aria-label="Reading status"
+            className="grid grid-cols-5 gap-0.5 rounded-xl border-2 border-outline bg-surface-2 p-1"
+          >
             {(Object.keys(READ_STATUS_LABEL) as ReadStatus[]).map((s) => (
               <button
                 key={s}
+                role="radio"
+                aria-checked={book.read_status === s}
                 onClick={() =>
                   s === "read" ? openFinishBook(book) : setStatus.mutate({ book, status: s })
                 }
                 className={cn(
-                  "chip",
-                  book.read_status === s ? "bg-riso-blue text-white" : "",
+                  "min-h-10 rounded-lg px-0.5 text-[0.72rem] font-bold leading-tight transition sm:text-sm",
+                  book.read_status === s
+                    ? "bg-riso-orange text-[#1a1430] shadow-[inset_0_0_0_2px_var(--outline)]"
+                    : "text-text-muted hover:text-text",
                 )}
               >
-                {READ_STATUS_LABEL[s]}
+                {s === "abandoned" ? "DNF" : READ_STATUS_LABEL[s]}
               </button>
             ))}
-            {book.read_status === "read" && (
-              <button onClick={() => readAgain.mutate(book, { onSuccess: () => toast.success("Re-reading — the new read is recorded when you finish") })} className="chip border-dashed">
-                <RotateCcw className="h-3.5 w-3.5" /> Read again
-              </button>
-            )}
           </div>
 
-          {/* Quick actions */}
+          {/* Book actions (logging lives in the Reading tab) */}
           <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              onClick={() => openLogSession(book)}
-              className="btn-primary"
-            >
-              <BookOpen className="h-5 w-5" /> Log reading
-            </button>
-            <button
-              onClick={() => startTimer({ id: book.id, title: book.title })}
-              className="btn-outline"
-            >
-              <TimerIcon className="h-5 w-5" /> Start timer
-            </button>
             {book.queue_position != null ? (
               <button onClick={() => removeQ.mutate(book.id)} className="btn-outline">
                 <ListX className="h-5 w-5" /> In queue
@@ -281,8 +326,72 @@ export default function BookDetailPage() {
         </div>
       </div>
 
-      {/* Bookmark — only while the book is in progress */}
-      {book.read_status !== "read" && (
+      {/* Sticky: slim hero (once the big one scrolls away) + tabs */}
+      <div className="sticky top-[58px] z-20 -mx-4 border-b-[2.5px] border-outline bg-bg/95 backdrop-blur sm:-mx-6 lg:top-0">
+        {heroGone && (
+          <div className="flex items-center gap-3 border-b-2 border-border px-4 py-2 sm:px-6">
+            <div className="w-7 shrink-0">
+              <BookCover title={book.title} authors={book.authors} coverUrl={book.cover_url} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-sm font-extrabold">{book.title}</p>
+              <p className="text-xs font-semibold text-text-muted">
+                {READ_STATUS_LABEL[book.read_status]}
+                {progress != null && book.read_status !== "read" ? ` · ${progress}%` : ""}
+              </p>
+            </div>
+            {book.read_status !== "read" && (
+              <button onClick={() => openLogSession(book)} className="chip min-h-9 bg-riso-blue px-3 text-white">
+                Log
+              </button>
+            )}
+          </div>
+        )}
+        <nav className="grid grid-cols-4" aria-label="Book sections">
+          {TABS.map((tb) => (
+            <button
+              key={tb.key}
+              onClick={() => setTab(tb.key)}
+              aria-current={tab === tb.key ? "page" : undefined}
+              className={cn(
+                "min-h-11 px-1 text-xs font-bold leading-tight transition sm:text-sm",
+                tab === tb.key
+                  ? "text-text shadow-[inset_0_-5px_0_var(--color-riso-pink)]"
+                  : "text-text-muted hover:text-text",
+              )}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {tab === "reading" && (
+        <div className="space-y-6">
+      {/* Where you left off — or, once finished, the finished card */}
+      {book.read_status === "read" ? (
+        <section className="card p-5">
+          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-extrabold">
+            <Bookmark className="h-5 w-5 text-riso-blue" /> Finished
+          </h2>
+          <p className="text-sm text-text-muted">
+            {book.finished_on
+              ? `Last finished ${format(parseISO(book.finished_on), "d MMM yyyy")}`
+              : "Finished (date not recorded)"}
+            {book.times_read > 1 ? ` · read ${book.times_read} times` : ""}
+          </p>
+          <button
+            onClick={() =>
+              readAgain.mutate(book, {
+                onSuccess: () => toast.success("Re-reading — the new read is recorded when you finish"),
+              })
+            }
+            className="btn-outline mt-3"
+          >
+            <RotateCcw className="h-4 w-4" /> Read it again
+          </button>
+        </section>
+      ) : (
       <section className="card p-5">
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-extrabold">
           <Bookmark className="h-5 w-5 text-riso-orange" /> Where you left off
@@ -311,7 +420,29 @@ export default function BookDetailPage() {
               : ""}
           </p>
         )}
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <QuickLog book={book} wide />
+          </div>
+          <button
+            onClick={() => startTimer({ id: book.id, title: book.title })}
+            className="btn-outline h-11 min-h-0 w-11 shrink-0 p-0"
+            aria-label="Start timer"
+          >
+            <TimerIcon className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => openLogSession(book)}
+            className="btn-primary h-11 min-h-0 shrink-0 px-3"
+          >
+            <BookOpen className="h-5 w-5" /> Log
+          </button>
+        </div>
+        <details className="group">
+          <summary className="cursor-pointer list-none text-sm font-bold text-text-muted hover:text-text">
+            Set the bookmark by hand…
+          </summary>
+        <div className="mt-2 flex flex-wrap items-end gap-2">
           <div>
             <label className="label">
               {audio ? "Current position (min)" : loc ? "Current location" : "Current page"}
@@ -341,9 +472,42 @@ export default function BookDetailPage() {
             Update bookmark
           </button>
         </div>
+        </details>
       </section>
       )}
 
+      {/* Review */}
+      <section className="card p-5">
+        <h2 className="mb-3 font-display text-lg font-extrabold">Your review</h2>
+        <textarea
+          className="textarea"
+          rows={4}
+          value={review}
+          onChange={(e) => setReview(e.target.value)}
+          placeholder="What did you make of it?"
+        />
+        <button className="btn-outline mt-3" onClick={saveReview}>
+          Save review
+        </button>
+      </section>
+
+      {/* Per-read history (each re-read keeps its own rating + review) */}
+      <ReadThroughsSection bookId={book.id} />
+
+        </div>
+      )}
+
+      {tab === "notes" && (
+        <div className="space-y-6">
+          <ReadingHistory book={book} sessions={sessions} mode="notes" />
+      {/* Quotes / highlights */}
+      <QuotesSection bookId={book.id} />
+
+        </div>
+      )}
+
+      {tab === "details" && (
+        <div className="space-y-6">
       {/* Metadata + classification */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <section className="card p-5">
@@ -425,24 +589,6 @@ export default function BookDetailPage() {
         </section>
       )}
 
-      {/* Review */}
-      <section className="card p-5">
-        <h2 className="mb-3 font-display text-lg font-extrabold">Your review</h2>
-        <textarea
-          className="textarea"
-          rows={4}
-          value={review}
-          onChange={(e) => setReview(e.target.value)}
-          placeholder="What did you make of it?"
-        />
-        <button className="btn-outline mt-3" onClick={saveReview}>
-          Save review
-        </button>
-      </section>
-
-      {/* Per-read history (each re-read keeps its own rating + review) */}
-      <ReadThroughsSection bookId={book.id} />
-
       {/* Lending */}
       <LoanSection book={book} />
 
@@ -452,11 +598,14 @@ export default function BookDetailPage() {
       {/* Other editions (linked, or ones that look like the same work) */}
       <EditionsSection book={book} />
 
-      {/* Quotes / highlights */}
-      <QuotesSection bookId={book.id} />
+        </div>
+      )}
 
-      {/* Reading history: sessions + notes while reading */}
-      <ReadingHistory book={book} sessions={sessions} />
+      {tab === "history" && (
+        <div className="space-y-6">
+          <ReadingHistory book={book} sessions={sessions} mode="sessions" />
+        </div>
+      )}
     </div>
   );
 }

@@ -60,7 +60,7 @@ export function DuplicatesNotice({ books }: { books: Book[] }) {
           }}
           onKeyDown={(e) => e.key === "Enter" && setDismissed(true)}
           aria-label="Dismiss"
-          className="rounded p-1 text-text-muted hover:bg-surface-2 hover:text-text"
+          className="tap rounded p-1 text-text-muted hover:bg-surface-2 hover:text-text"
         >
           <X className="h-4 w-4" />
         </span>
@@ -123,7 +123,7 @@ export function DuplicatesNotice({ books }: { books: Book[] }) {
                     <button
                       onClick={() => remove(b)}
                       aria-label="Delete this copy"
-                      className="shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+                      className="tap shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

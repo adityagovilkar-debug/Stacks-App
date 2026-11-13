@@ -18,6 +18,7 @@ import {
   Search,
   Timer as TimerIcon,
   Square,
+  LayoutGrid,
   Pause,
   Play,
   Layers,
@@ -32,6 +33,8 @@ import type { LucideIcon } from "lucide-react";
 import { LogSessionDialog } from "./LogSessionDialog";
 import { EditBookDialog } from "./EditBookDialog";
 import { CommandPalette } from "./CommandPalette";
+import { MoreSheet } from "./MoreSheet";
+import { AskSheet } from "./AskSheet";
 import { FinishBookDialog } from "./FinishBookDialog";
 import {
   EDIT_BOOK_EVENT,
@@ -50,6 +53,7 @@ import { useProfile, useUpdateProfile } from "@/lib/queries";
 import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import type { Book } from "@/lib/types";
+import { confirmSheet } from "@/lib/ask";
 
 interface Timer {
   id: string;
@@ -79,7 +83,7 @@ const NAV: NavItem[] = [
   { href: "/recommendations", label: "Recommendations", short: "Recs", icon: MessageSquareHeart },
   { href: "/lending", label: "Lending desk", short: "Lending", icon: HandHelping },
   { href: "/log", label: "Reading log", short: "Log", icon: NotebookPen },
-  { href: "/stats", label: "Progress", short: "Stats", icon: BarChart3, mobile: true },
+  { href: "/stats", label: "Progress", short: "Stats", icon: BarChart3 },
   { href: "/wrapped", label: "Year in review", short: "Wrapped", icon: Sparkles },
   { href: "/quotes", label: "Commonplace book", short: "Quotes", icon: Quote },
   { href: "/shelf", label: "Shelf map", short: "Shelf", icon: MapPin },
@@ -143,17 +147,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setTimer({ bankedMs: 0, paused: false, ...saved });
       }
     } catch {}
-    function onTimer(e: Event) {
+    async function onTimer(e: Event) {
       const b = (e as CustomEvent<TimerDetail>).detail.book;
       // Ask once, outside any state update (updaters can run twice).
       const current = timerRef.current;
       if (current && current.id === b.id) return; // already timing this book
       if (current) {
         const mins = Math.max(1, Math.round(timerElapsed(current) / 60000));
-        const ok = window.confirm(
-          `A timer for “${current.title}” has been running for ${mins} min. ` +
-            `Discard it and start a new timer for “${b.title}”?`,
-        );
+        const ok = await confirmSheet({
+          title: "Swap timers?",
+          body: `A timer for “${current.title}” has been running for ${mins} min. Discard it and start timing “${b.title}” instead?`,
+          confirmLabel: "Start new timer",
+          cancelLabel: "Keep the old one",
+          danger: true,
+        });
         if (!ok) return;
       }
       saveTimer({ id: b.id, title: b.title, startedAt: Date.now(), bankedMs: 0, paused: false });
@@ -225,6 +232,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Close the More sheet whenever the page changes.
+  useEffect(() => setMoreOpen(false), [pathname]);
+  const inMore = !MOBILE_NAV.some((n) => (n.href === "/" ? pathname === "/" : pathname.startsWith(n.href)));
+
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -295,24 +307,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button
               onClick={openCommand}
               aria-label="Search"
-              className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-text"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-text-muted hover:bg-surface-2 hover:text-text"
             >
               <Search className="h-5 w-5" />
             </button>
-            <Link
-              href="/shelf"
-              aria-label="Shelf map"
-              className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-text"
-            >
-              <MapPin className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/settings"
-              aria-label="Settings"
-              className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-text"
-            >
-              <Settings className="h-5 w-5" />
-            </Link>
           </div>
         </header>
 
@@ -321,7 +319,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             You&apos;re offline — you can browse your library, but changes won&apos;t save until you&apos;re back online.
           </div>
         )}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-12">
+        <main className="relative mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-12">
+          {/* Registration marks — a print-sheet detail, dark mode only */}
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="regmark pointer-events-none absolute left-1 top-1 h-5 w-5 opacity-40" fill="none" stroke="var(--outline)" strokeWidth="1.6">
+            <circle cx="12" cy="12" r="6" />
+            <path d="M12 1v22M1 12h22" />
+          </svg>
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="regmark pointer-events-none absolute right-1 top-1 h-5 w-5 opacity-40" fill="none" stroke="var(--outline)" strokeWidth="1.6">
+            <circle cx="12" cy="12" r="6" />
+            <path d="M12 1v22M1 12h22" />
+          </svg>
           {children}
         </main>
       </div>
@@ -330,7 +337,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         onClick={() => openLogSession()}
         aria-label="Log reading"
-        className="js-fab fixed bottom-24 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border-[2.5px] border-outline bg-riso-pink text-white pop transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none lg:hidden"
+        className={cn(
+          "js-fab fixed bottom-24 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border-[2.5px] border-outline bg-riso-pink text-white pop transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none lg:hidden",
+          pathname === "/" && "hidden",
+        )}
       >
         <BookOpen className="h-6 w-6" strokeWidth={2.5} />
       </button>
@@ -348,10 +358,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={n.href}
                 className={cn(
                   "relative flex flex-col items-center gap-0.5 py-2.5 text-[0.65rem] font-bold transition",
-                  active ? "text-riso-blue" : "text-text-muted",
+                  active && !moreOpen ? "text-riso-blue" : "text-text-muted",
                 )}
               >
-                {active && !isAdd && (
+                {active && !isAdd && !moreOpen && (
                   <span className="absolute top-0 h-1 w-8 rounded-full bg-riso-blue" />
                 )}
                 {isAdd ? (
@@ -365,8 +375,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          <button
+            onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={moreOpen}
+            className={cn(
+              "relative flex flex-col items-center gap-0.5 py-2.5 text-[0.65rem] font-bold transition",
+              moreOpen || inMore ? "text-riso-blue" : "text-text-muted",
+            )}
+          >
+            {(moreOpen || inMore) && <span className="absolute top-0 h-1 w-8 rounded-full bg-riso-blue" />}
+            <LayoutGrid className="h-5 w-5" strokeWidth={2.5} />
+            More
+          </button>
         </div>
       </nav>
+      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} />
 
       {/* Running reading timer */}
       {timer && (
@@ -420,6 +443,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClose={() => setFinishOpen(false)}
       />
       <CommandPalette />
+      <AskSheet />
     </div>
   );
 }

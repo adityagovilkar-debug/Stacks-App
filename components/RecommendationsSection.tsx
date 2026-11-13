@@ -73,7 +73,7 @@ export function RecommendationsSection({ bookId }: { bookId: string }) {
               </span>
               <button
                 aria-label="Remove"
-                className="ml-auto rounded p-1 text-text-muted hover:text-riso-pink"
+                className="tap ml-auto rounded p-1 text-text-muted hover:text-riso-pink"
                 onClick={() => del.mutate(r.id)}
               >
                 <Trash2 className="h-3.5 w-3.5" />

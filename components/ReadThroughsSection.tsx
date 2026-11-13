@@ -13,6 +13,7 @@ import {
 import { todayISO } from "@/lib/stats";
 import { format, parseISO } from "date-fns";
 import type { ReadThrough } from "@/lib/types";
+import { confirmSheet } from "@/lib/ask";
 
 // Per-read-through history: each completed read keeps its own dated rating +
 // review, so a re-read never overwrites what past-you thought.
@@ -89,13 +90,20 @@ export function ReadThroughsSection({ bookId }: { bookId: string }) {
                     <button
                       onClick={() => setEditingId(r.id)}
                       aria-label="Edit read"
-                      className="rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-blue"
+                      className="tap rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-blue"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm("Delete this read from the history?"))
+                      onClick={async () => {
+                        if (
+                          await confirmSheet({
+                            title: "Delete this read?",
+                            body: "Its date, rating and review go from the history.",
+                            confirmLabel: "Delete read",
+                            danger: true,
+                          })
+                        )
                           del.mutate(
                             { id: r.id, book_id: bookId },
                             {
@@ -105,7 +113,7 @@ export function ReadThroughsSection({ bookId }: { bookId: string }) {
                           );
                       }}
                       aria-label="Delete read"
-                      className="rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-pink"
+                      className="tap rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-pink"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

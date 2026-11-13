@@ -12,7 +12,22 @@ export function WrappedShareCard({ year, w }: { year: number; w: Wrapped }) {
   const [canShareFile, setCanShareFile] = useState(false);
 
   useEffect(() => {
-    draw(canvasRef.current, year, w);
+    let cancelled = false;
+    (async () => {
+      const css = getComputedStyle(document.documentElement);
+      const display = css.getPropertyValue("--ff-display").trim() || "system-ui";
+      const body = css.getPropertyValue("--ff-body").trim() || "system-ui";
+      try {
+        await Promise.all([
+          document.fonts.load(`800 100px ${display}`),
+          document.fonts.load(`700 40px ${body}`),
+        ]);
+      } catch {}
+      if (!cancelled) draw(canvasRef.current, year, w, display, body);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [year, w]);
 
   useEffect(() => {
@@ -106,7 +121,15 @@ const INK = "#1a1430";
 const PINK = "#ff4f9a";
 const YELLOW = "#ffd23f";
 
-function draw(canvas: HTMLCanvasElement | null, year: number, w: Wrapped) {
+function draw(
+  canvas: HTMLCanvasElement | null,
+  year: number,
+  w: Wrapped,
+  display = "system-ui",
+  body = "system-ui",
+) {
+  const D = (weight: number, px: number) => `${weight} ${px}px ${display}, system-ui, sans-serif`;
+  const B = (weight: number, px: number) => `${weight} ${px}px ${body}, system-ui, sans-serif`;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -137,20 +160,20 @@ function draw(canvas: HTMLCanvasElement | null, year: number, w: Wrapped) {
 
   // Eyebrow
   ctx.fillStyle = INK;
-  ctx.font = "700 40px system-ui, sans-serif";
+  ctx.font = B(700, 40);
   ctx.fillText("STACKS · YEAR IN BOOKS", cx, 180);
 
   // Year
-  ctx.font = "800 150px system-ui, sans-serif";
+  ctx.font = D(800, 150);
   ctx.fillStyle = "#ffffff";
   ctx.fillText(String(year), cx, 340);
 
   // Big number
   ctx.fillStyle = INK;
-  ctx.font = "800 320px system-ui, sans-serif";
+  ctx.font = D(800, 320);
   ctx.fillText(String(w.booksFinished), cx, 660);
   ctx.fillStyle = "#ffffff";
-  ctx.font = "700 54px system-ui, sans-serif";
+  ctx.font = D(700, 54);
   ctx.fillText(w.booksFinished === 1 ? "book finished" : "books finished", cx, 730);
 
   // Stat chips (2×2)
@@ -177,21 +200,21 @@ function draw(canvas: HTMLCanvasElement | null, year: number, w: Wrapped) {
     ctx.strokeRect(x, y, bw, bh);
     ctx.fillStyle = INK;
     ctx.textAlign = "left";
-    ctx.font = "800 76px system-ui, sans-serif";
+    ctx.font = D(800, 76);
     ctx.fillText(val, x + 28, y + 82);
-    ctx.font = "700 34px system-ui, sans-serif";
+    ctx.font = B(700, 34);
     ctx.fillText(label, x + 28, y + 126);
   });
 
   // Top genres line
   ctx.textAlign = "center";
   ctx.fillStyle = "#ffffff";
-  ctx.font = "700 40px system-ui, sans-serif";
+  ctx.font = B(700, 40);
   const genres = w.topGenres.slice(0, 3).map((g) => g.name).join(" · ");
   if (genres) ctx.fillText(genres, cx, 1240);
 
   // Footer
   ctx.fillStyle = INK;
-  ctx.font = "700 34px system-ui, sans-serif";
+  ctx.font = D(700, 34);
   ctx.fillText("— my Stacks library —", cx, 1300);
 }

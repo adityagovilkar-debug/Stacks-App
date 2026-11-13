@@ -123,7 +123,7 @@ export default function QueuePage() {
                 <button
                   onClick={() => removeQ.mutate(b.id)}
                   aria-label="Remove from queue"
-                  className="rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
+                  className="tap rounded-lg p-2 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
                 >
                   <X className="h-4 w-4" />
                 </button>

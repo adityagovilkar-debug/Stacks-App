@@ -189,6 +189,24 @@ Suggestions only. For anything that changes how a page looks I'd make a mockup f
   - Bug found while verifying: the login guard's `startsWith("/auth")` made `/authors`
     public (RLS still returned nothing). Fixed to whole-segment matching.
   - Logic checks: 9/9 pass (scratch script; into the test suite in Phase 5).
-- **Next: Phase 4** (build the approved mockups).
+- **Phase 4 — done 2026-11-13.** No migration. Built from the approved mockups:
+  - Phone bar Home · Library · Add · Queue · More (Progress moved into More, his OK).
+    More sheet: search + grouped tiles with live counts. Phone header = logo + search.
+  - Home: now-reading hero card (progress, time left, "Now on page ✓", timer, log),
+    slim rows for other books, compact Today/streak/year strip, Up next as covers +
+    "Surprise me". Floating Log button hidden on Home only.
+  - Book page in tabs (Reading · Notes & quotes · Details · History) with a sticky tab
+    bar; a slim hero with a Log button appears once the big hero scrolls away. Status
+    is one segmented control; Finished books get a "Read it again" card.
+  - Library: Grid / List / Spines (remembered per device), group by shelf / author /
+    series / year read, active filters as removable chips (incl. "not" ones).
+  - Riso sheets replace every browser confirm()/prompt() (lib/ask.ts + AskSheet);
+    book Remove offers "Remove from library" / "Delete forever".
+  - Dark mode print: pink/blue second-ink shadows, two-ink overprint headings, finer
+    grain, registration marks. Status stamp "thunk" on change (respects reduced motion).
+  - Wrapped share card drawn in the app's own fonts. Icon buttons ≥ 44px (`.tap`).
+  - Verified visually with a temporary dev-only preview page (spines, rows, More sheet,
+    choice sheet in light + dark at phone width); page removed before commit.
+- **Next: Phase 5** (under the hood) — when he asks.
 - Phase 5 note: `eslint` reports 13 "setState inside an effect" style errors (mostly
   older code). The build ignores them; tidy them in Phase 5.
