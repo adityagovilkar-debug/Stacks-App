@@ -109,7 +109,7 @@ function mapOlDoc(d: any): BookLookup | null {
     isbn13: isbns.find((x) => x.length === 13) ?? null,
     isbn10: isbns.find((x) => x.length === 10) ?? null,
     cover_url: d.cover_i
-      ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
+      ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg?default=false`
       : null,
     publisher: d.publisher?.[0] ?? null,
     published_year: d.first_publish_year ?? null,
@@ -196,7 +196,7 @@ async function fromOpenLibrarySearch(isbn: string): Promise<BookLookup | null> {
       isbn10: isbn.length === 10 ? isbn : null,
       isbn13: isbn.length === 13 ? isbn : null,
       cover_url: d.cover_i
-        ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`
+        ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg?default=false`
         : null,
       publisher: d.publisher?.[0] ?? null,
       published_year: d.first_publish_year ?? null,
@@ -271,7 +271,7 @@ export async function lookupIsbn(raw: string): Promise<BookLookup | null> {
   }
   if (!out.cover_url) {
     const c = out.isbn13 || out.isbn10 || isbn;
-    out.cover_url = `https://covers.openlibrary.org/b/isbn/${c}-L.jpg`;
+    out.cover_url = `https://covers.openlibrary.org/b/isbn/${c}-L.jpg?default=false`;
   }
   return out;
 }

@@ -7,17 +7,17 @@ import { BookCover } from "@/components/BookCover";
 import { RatingStars } from "@/components/RatingStars";
 import { EmptyState } from "@/components/EmptyState";
 import { WrappedShareCard } from "@/components/WrappedShareCard";
-import { useBooks, useSessions } from "@/lib/queries";
+import { useAllReadThroughs, useSessions } from "@/lib/queries";
 import { availableYears, wrappedStats } from "@/lib/wrapped";
 import { cn } from "@/lib/utils";
 
 export default function WrappedPage() {
-  const { data: books = [] } = useBooks();
   const { data: sessions = [] } = useSessions();
+  const { data: reads = [] } = useAllReadThroughs();
 
-  const years = useMemo(() => availableYears(books, sessions), [books, sessions]);
+  const years = useMemo(() => availableYears(reads, sessions), [reads, sessions]);
   const [year, setYear] = useState(years[0] ?? new Date().getFullYear());
-  const w = useMemo(() => wrappedStats(books, sessions, year), [books, sessions, year]);
+  const w = useMemo(() => wrappedStats(reads, sessions, year), [reads, sessions, year]);
 
   const empty = w.booksFinished === 0 && w.pagesRead === 0;
   const PIE = ["#0b63f6", "#ff4f9a", "#ffd23f", "#ff6f3c", "#7b5cff"];

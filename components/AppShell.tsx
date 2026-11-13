@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -81,6 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Reading timer (persisted so it survives reloads / navigation).
   const [timer, setTimer] = useState<{ id: string; title: string; startedAt: number } | null>(null);
+  const timerRef = useRef<typeof timer>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -111,25 +112,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } catch {}
     function onTimer(e: Event) {
       const b = (e as CustomEvent<TimerDetail>).detail.book;
-      setTimer((current) => {
-        // Don't silently throw away a running timer — confirm the swap.
-        if (current && current.id !== b.id) {
-          const mins = Math.max(1, Math.round((Date.now() - current.startedAt) / 60000));
-          const ok = window.confirm(
-            `A timer for “${current.title}” has been running for ${mins} min. ` +
-              `Discard it and start a new timer for “${b.title}”?`,
-          );
-          if (!ok) return current;
-        }
-        const t = { id: b.id, title: b.title, startedAt: Date.now() };
-        try {
-          localStorage.setItem("stacks-timer", JSON.stringify(t));
-        } catch {}
-        return t;
-      });
+      // Ask once, outside any state update (updaters can run twice).
+      const current = timerRef.current;
+      if (current && current.id === b.id) return; // already timing this book
+      if (current) {
+        const mins = Math.max(1, Math.round((Date.now() - current.startedAt) / 60000));
+        const ok = window.confirm(
+          `A timer for “${current.title}” has been running for ${mins} min. ` +
+            `Discard it and start a new timer for “${b.title}”?`,
+        );
+        if (!ok) return;
+      }
+      const t = { id: b.id, title: b.title, startedAt: Date.now() };
+      try {
+        localStorage.setItem("stacks-timer", JSON.stringify(t));
+      } catch {}
+      setTimer(t);
     }
     window.addEventListener(TIMER_EVENT, onTimer);
     return () => window.removeEventListener(TIMER_EVENT, onTimer);
+  }, []);
+
+  // Mirror the timer into a ref so the event handler above reads the latest.
+  useEffect(() => {
+    timerRef.current = timer;
+  }, [timer]);
+
+  // Offline = read-only for now (your library stays browsable from the cache,
+  // but changes need a connection).
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const sync = () => setOffline(!navigator.onLine);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
   }, []);
 
   // Tick the elapsed display once a second while a timer runs.
@@ -252,6 +272,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        {offline && (
+          <div className="border-b-2 border-outline bg-riso-yellow px-4 py-2 text-center text-sm font-bold text-[#1a1430]">
+            You&apos;re offline — you can browse your library, but changes won&apos;t save until you&apos;re back online.
+          </div>
+        )}
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-12">
           {children}
         </main>
@@ -261,7 +286,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         onClick={() => openLogSession()}
         aria-label="Log reading"
-        className="fixed bottom-24 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border-[2.5px] border-outline bg-riso-pink text-white pop transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none lg:hidden"
+        className="js-fab fixed bottom-24 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full border-[2.5px] border-outline bg-riso-pink text-white pop transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none lg:hidden"
       >
         <BookOpen className="h-6 w-6" strokeWidth={2.5} />
       </button>
@@ -301,7 +326,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Running reading timer */}
       {timer && (
-        <div className="fixed bottom-24 left-4 z-40 flex items-center gap-2 rounded-full border-[2.5px] border-outline bg-riso-yellow px-3 py-1.5 text-[#1a1430] pop lg:bottom-6">
+        <div className="js-timer fixed bottom-24 left-4 z-40 flex items-center gap-2 rounded-full border-[2.5px] border-outline bg-riso-yellow px-3 py-1.5 text-[#1a1430] pop lg:bottom-6">
           <TimerIcon className="h-4 w-4" />
           <span className="font-display text-sm font-extrabold tabular-nums">{elapsed}</span>
           <span className="hidden max-w-[120px] truncate text-xs font-bold sm:inline">

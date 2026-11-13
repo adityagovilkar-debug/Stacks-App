@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sun, Moon, Type, Target, MapPin, Tags, FolderHeart, LogOut } from "lucide-react";
+import {
+  Sun,
+  Moon,
+  Type,
+  Target,
+  MapPin,
+  Tags,
+  FolderHeart,
+  LogOut,
+  HardDriveDownload,
+  ArchiveRestore,
+} from "lucide-react";
 import { LocationManager } from "@/components/LocationManager";
+import { BackupSection } from "@/components/BackupSection";
+import { RemovedBooks } from "@/components/RemovedBooks";
 import { TagManager } from "@/components/TagManager";
 import { CollectionManager } from "@/components/CollectionManager";
 import { useProfile, useUpdateProfile } from "@/lib/queries";
@@ -202,6 +215,14 @@ export default function SettingsPage() {
           Your own shelves — group books however you please.
         </p>
         <CollectionManager />
+      </Card>
+
+      <Card icon={<HardDriveDownload className="h-5 w-5 text-riso-blue" />} title="Backup">
+        <BackupSection />
+      </Card>
+
+      <Card icon={<ArchiveRestore className="h-5 w-5 text-riso-orange" />} title="Removed books">
+        <RemovedBooks />
       </Card>
 
       <Card icon={<LogOut className="h-5 w-5" />} title="Account">

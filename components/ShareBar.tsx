@@ -17,6 +17,12 @@ export function ShareBar({ books, onClear }: { books: Book[]; onClear: () => voi
   const [canNativeShare, setCanNativeShare] = useState(false);
   useEffect(() => {
     setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share);
+    // Tell the shell the bar is up so the phone's Log button hides and the
+    // timer pill moves above it (see globals.css).
+    document.documentElement.dataset.sharebar = "1";
+    return () => {
+      delete document.documentElement.dataset.sharebar;
+    };
   }, []);
 
   async function onShare() {

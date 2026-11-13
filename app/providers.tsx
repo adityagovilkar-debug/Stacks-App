@@ -1,6 +1,7 @@
 "use client";
 
-import { QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { get, set, del } from "idb-keyval";
@@ -10,8 +11,7 @@ import { Toaster } from "sonner";
 const WEEK = 1000 * 60 * 60 * 24 * 7;
 
 // Persist the query cache to IndexedDB so the library is readable offline and
-// a flaky connection doesn't lose your list. Writes made while offline are
-// paused and replayed when the connection returns (last-write-wins).
+// a flaky connection doesn't lose your list. Writes need a connection.
 const persister = createAsyncStoragePersister({
   storage: {
     getItem: (k) => get(k),
@@ -26,6 +26,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [qc] = useState(
     () =>
       new QueryClient({
+        // Offline is read-only for now: a change made without a connection
+        // fails straight away with a clear message, instead of being queued
+        // and then lost if the app is closed before you're back online.
+        mutationCache: new MutationCache({
+          onError: () => {
+            if (typeof navigator !== "undefined" && !navigator.onLine)
+              toast.error("You're offline — that change wasn't saved.", { id: "offline-write" });
+          },
+        }),
         defaultOptions: {
           queries: {
             staleTime: 60_000,
@@ -34,7 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             retry: 1,
             networkMode: "offlineFirst",
           },
-          mutations: { networkMode: "offlineFirst" },
+          mutations: { networkMode: "always" },
         },
       }),
   );

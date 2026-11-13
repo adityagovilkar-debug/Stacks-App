@@ -7,7 +7,7 @@ export type ReadStatus =
   | "on_hold"
   | "abandoned"
   | "read";
-export type Ownership = "owned" | "wishlist" | "borrowed" | "lent_out";
+export type Ownership = "owned" | "wishlist" | "borrowed" | "lent_out" | "not_owned";
 export type BookFormat =
   | "hardcover"
   | "paperback"
@@ -96,6 +96,7 @@ export interface Book {
   started_on: string | null;
   finished_on: string | null;
   queue_position: number | null; // null = not in the to-read queue
+  archived_at: string | null; // set = removed from library (history kept)
   created_at: string;
   updated_at: string;
   // joined / computed client-side
@@ -134,6 +135,8 @@ export interface BookInput {
   rating: number | null;
   favorite: boolean;
   review: string | null;
+  started_on: string | null;
+  finished_on: string | null; // empty while Read = "don't remember when"
   // chosen tag + collection ids (reconciled into join tables on save)
   tag_ids: string[];
   collection_ids: string[];
@@ -149,10 +152,14 @@ export interface ReadingSession {
   end_page: number | null;
   locations_read: number | null; // ebook (by location): how many locations
   end_location: number | null; // ebook (by location): "now at location N"
+  end_position_minutes: number | null; // audiobook: "now at minute N"
   note: string | null;
   created_at: string;
   // joined
-  book?: Pick<Book, "id" | "title" | "authors" | "cover_url" | "page_count" | "format">;
+  book?: Pick<
+    Book,
+    "id" | "title" | "authors" | "cover_url" | "page_count" | "format" | "total_locations"
+  >;
 }
 
 export interface SessionInput {
@@ -232,6 +239,8 @@ export interface ReadThrough {
   rating: number | null;
   review: string | null;
   created_at: string;
+  // joined (only on the all-reads query used by stats / Wrapped)
+  book?: Book;
 }
 
 export interface ReadThroughInput {
@@ -281,7 +290,12 @@ export const OWNERSHIP_LABEL: Record<Ownership, string> = {
   wishlist: "Wishlist",
   borrowed: "Borrowed",
   lent_out: "Lent out",
+  not_owned: "Not on my shelf",
 };
+
+// Ownership values the edit form may set directly. "Lent out" and
+// "Borrowed" only come from an open loan (the Lending section).
+export const EDITABLE_OWNERSHIP: Ownership[] = ["owned", "wishlist", "not_owned"];
 
 export const FORMAT_LABEL: Record<BookFormat, string> = {
   hardcover: "Hardcover",
@@ -361,6 +375,8 @@ export function emptyBookInput(): BookInput {
     rating: null,
     favorite: false,
     review: null,
+    started_on: null,
+    finished_on: null,
     tag_ids: [],
     collection_ids: [],
   };
@@ -396,6 +412,8 @@ export function bookToInput(b: Book): BookInput {
     rating: b.rating,
     favorite: b.favorite,
     review: b.review,
+    started_on: b.started_on,
+    finished_on: b.finished_on,
     tag_ids: (b.tags ?? []).map((t) => t.id),
     collection_ids: b.collection_ids ?? [],
   };

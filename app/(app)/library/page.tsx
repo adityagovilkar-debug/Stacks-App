@@ -94,8 +94,11 @@ function LibraryInner() {
 
   // Reflect the live filter state back into the URL (shareable + bookmarkable).
   // currentQuery is hoisted; deps cover every field it reads.
+  // Debounced so typing in the search box doesn't navigate on every key.
   useEffect(() => {
-    router.replace(libraryHref(currentQuery()), { scroll: false });
+    const href = libraryHref(currentQuery());
+    const t = setTimeout(() => router.replace(href, { scroll: false }), 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, status, ownership, formats, tagIds, collectionId, locationId, favOnly, minRating, sort]);
 

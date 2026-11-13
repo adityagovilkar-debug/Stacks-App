@@ -96,7 +96,13 @@ export function ReadThroughsSection({ bookId }: { bookId: string }) {
                     <button
                       onClick={() => {
                         if (confirm("Delete this read from the history?"))
-                          del.mutate({ id: r.id, book_id: bookId });
+                          del.mutate(
+                            { id: r.id, book_id: bookId },
+                            {
+                              onError: (e) =>
+                                toast.error(e instanceof Error ? e.message : "Couldn't delete"),
+                            },
+                          );
                       }}
                       aria-label="Delete read"
                       className="rounded-lg p-1.5 text-text-muted hover:bg-surface hover:text-riso-pink"

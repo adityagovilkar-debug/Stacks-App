@@ -17,13 +17,14 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StatusStamp } from "@/components/StatusStamp";
 import { SkeletonList } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
-import { useBooks, useProfile, useQuotes, useSessions } from "@/lib/queries";
+import { useAllReadThroughs, useBooks, useProfile, useQuotes, useSessions } from "@/lib/queries";
 import { openLogSession, startTimer } from "@/lib/events";
 import {
   currentStreak,
   pagesOn,
   minutesOn,
   todayISO,
+  readsInYear,
   series,
   readingProgress,
   estimateTimeLeft,
@@ -34,6 +35,7 @@ import type { Book, ReadingSession } from "@/lib/types";
 export default function DashboardPage() {
   const { data: books = [], isLoading } = useBooks();
   const { data: sessions = [] } = useSessions();
+  const { data: reads = [] } = useAllReadThroughs();
   const { data: profile } = useProfile();
   const { data: quotes = [] } = useQuotes();
 
@@ -61,9 +63,7 @@ export default function DashboardPage() {
   const goalMet = todayPct >= 100;
 
   const year = new Date().getFullYear();
-  const booksThisYear = books.filter(
-    (b) => b.read_status === "read" && b.finished_on?.startsWith(String(year)),
-  ).length;
+  const booksThisYear = readsInYear(reads, year).length;
 
   const reading = useMemo(
     () =>

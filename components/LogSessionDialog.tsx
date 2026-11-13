@@ -45,9 +45,10 @@ export function LogSessionDialog({
         (b) =>
           b.read_status === "reading" ||
           b.queue_position != null ||
-          b.id === initialBook?.id,
+          b.id === initialBook?.id ||
+          b.id === editSession?.book_id,
       ),
-    [books, initialBook?.id],
+    [books, initialBook?.id, editSession?.book_id],
   );
 
   const options = useMemo(() => {

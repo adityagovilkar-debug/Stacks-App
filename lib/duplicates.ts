@@ -3,9 +3,14 @@
 // editions or covers, which carry different ISBNs and so won't be grouped).
 
 import type { Book } from "./types";
+import { isbn10to13 } from "./lookup";
 
+// Canonical form: always ISBN-13, so the same edition recorded once as
+// ISBN-10 and once as ISBN-13 is still recognised as the same book.
 function normIsbn(s: string | null | undefined): string {
-  return s ? s.replace(/[^0-9X]/gi, "").toUpperCase() : "";
+  const raw = s ? s.replace(/[^0-9X]/gi, "").toUpperCase() : "";
+  if (raw.length === 10) return isbn10to13(raw) ?? raw;
+  return raw;
 }
 
 // The grouping key: same edition (matching ISBN) groups together; with no

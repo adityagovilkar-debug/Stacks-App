@@ -12,7 +12,7 @@ import {
   startOfMonth,
   differenceInCalendarDays,
 } from "date-fns";
-import type { Book, ReadingSession } from "./types";
+import type { Book, ReadThrough, ReadingSession } from "./types";
 import { uniqueAuthors } from "./utils";
 
 export const ISO = (d: Date) => format(d, "yyyy-MM-dd");
@@ -56,7 +56,7 @@ export function longestStreak(sessions: ReadingSession[]): number {
 export function pagesOn(dateISO: string, sessions: ReadingSession[]): number {
   return sessions
     .filter((s) => s.happened_on === dateISO)
-    .reduce((sum, s) => sum + (s.pages_read || 0), 0);
+    .reduce((sum, s) => sum + sessionPages(s), 0);
 }
 export function minutesOn(dateISO: string, sessions: ReadingSession[]): number {
   return sessions
@@ -65,7 +65,24 @@ export function minutesOn(dateISO: string, sessions: ReadingSession[]): number {
 }
 
 export const totalPages = (s: ReadingSession[]) =>
-  s.reduce((n, x) => n + (x.pages_read || 0), 0);
+  s.reduce((n, x) => n + sessionPages(x), 0);
+
+// Pages a session counts for in goals and totals. Kindle-location sessions are
+// converted with the book's own ratio when its ≈ print pages are filled in,
+// otherwise with a typical ~15 locations per page. Reading *speed* (pages/hour)
+// never uses this — it stays print-only.
+export function sessionPages(s: ReadingSession): number {
+  let p = s.pages_read || 0;
+  const loc = s.locations_read || 0;
+  if (loc > 0) {
+    const b = s.book;
+    p +=
+      b?.page_count && b?.total_locations
+        ? Math.round((loc * b.page_count) / b.total_locations)
+        : Math.round(loc / LOCATIONS_PER_PAGE);
+  }
+  return p;
+}
 export const totalMinutes = (s: ReadingSession[]) =>
   s.reduce((n, x) => n + (x.minutes || 0), 0);
 
@@ -119,7 +136,7 @@ export function series(
     const key = ISO(bucketKey(parseISO(s.happened_on), g));
     const cur = map.get(key);
     if (!cur) continue; // outside the range
-    cur.pages += s.pages_read || 0;
+    cur.pages += sessionPages(s);
     cur.minutes += s.minutes || 0;
   }
   return buckets.map((b) => map.get(b.key)!);
@@ -157,11 +174,17 @@ export function speedTrend(sessions: ReadingSession[]): { label: string; speed: 
 }
 
 // --- Book-level breakdowns -------------------------------------------------
-export function booksFinishedByMonth(books: Book[]): { label: string; count: number }[] {
+// Reads that finished in a given year (a re-read counts again).
+export function readsInYear(reads: ReadThrough[], year: number): ReadThrough[] {
+  const y = String(year);
+  return reads.filter((r) => r.finished_on?.startsWith(y));
+}
+
+export function booksFinishedByMonth(reads: ReadThrough[]): { label: string; count: number }[] {
   const map = new Map<string, { d: Date; count: number }>();
-  for (const b of books) {
-    if (b.read_status !== "read" || !b.finished_on) continue;
-    const d = startOfMonth(parseISO(b.finished_on));
+  for (const r of reads) {
+    if (!r.finished_on) continue;
+    const d = startOfMonth(parseISO(r.finished_on));
     const key = ISO(d);
     const cur = map.get(key) ?? { d, count: 0 };
     cur.count++;
@@ -222,7 +245,7 @@ export function heatmap(sessions: ReadingSession[], weeks = 26): HeatCell[][] {
     const cur = totals.get(s.happened_on) ?? { pages: 0, minutes: 0 };
     // Count location-ebook progress as a rough page-equivalent so those days
     // register too.
-    cur.pages += (s.pages_read || 0) + Math.round((s.locations_read || 0) / LOCATIONS_PER_PAGE);
+    cur.pages += sessionPages(s);
     cur.minutes += s.minutes || 0;
     totals.set(s.happened_on, cur);
   }
@@ -402,8 +425,7 @@ export function readingByWeekday(sessions: ReadingSession[]): WeekdayPoint[] {
     const d = parseISO(s.happened_on).getDay();
     if (s.book?.format === "audiobook") minutes[d] += s.minutes || 0;
     else
-      pages[d] +=
-        (s.pages_read || 0) + Math.round((s.locations_read || 0) / LOCATIONS_PER_PAGE);
+      pages[d] += sessionPages(s);
   }
   // Render Mon-first for a familiar week shape.
   const order = [1, 2, 3, 4, 5, 6, 0];

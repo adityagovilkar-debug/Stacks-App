@@ -25,7 +25,8 @@ import { SkeletonList } from "@/components/Skeleton";
 import {
   useBook,
   useBookSessions,
-  useDeleteBook,
+  useArchiveBook,
+  useRestoreBook,
   useDeleteSession,
   useLocations,
   usePatchBook,
@@ -68,7 +69,8 @@ export default function BookDetailPage() {
   const setStatus = useSetReadStatus();
   const readAgain = useReadAgain();
   const patch = usePatchBook();
-  const del = useDeleteBook();
+  const archive = useArchiveBook();
+  const restore = useRestoreBook();
   const addQ = useAddToQueue();
   const removeQ = useRemoveFromQueue();
   const delSession = useDeleteSession();
@@ -129,11 +131,17 @@ export default function BookDetailPage() {
     patch.mutate({ id: book!.id, patch: { review: review.trim() || null } });
     toast.success("Review saved");
   }
+  // Removing keeps the reading history; it can be undone here or restored
+  // later from Settings → Removed books, where it can also be deleted forever.
   function remove() {
-    if (!confirm(`Delete “${book!.title}” from your library?`)) return;
-    del.mutate(book!.id, {
+    const id = book!.id;
+    const title = book!.title;
+    archive.mutate(id, {
       onSuccess: () => {
-        toast.success("Deleted");
+        toast.success(`Removed “${title}” from your library`, {
+          duration: 6000,
+          action: { label: "Undo", onClick: () => restore.mutate(id) },
+        });
         router.push("/library");
       },
     });
@@ -147,6 +155,17 @@ export default function BookDetailPage() {
       >
         <ArrowLeft className="h-4 w-4" /> Library
       </Link>
+
+      {book.archived_at && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-outline bg-riso-yellow/25 px-4 py-3 text-sm">
+          <p className="flex-1 font-semibold">
+            This book was removed from your library. Its reading history is kept.
+          </p>
+          <button className="btn-outline" onClick={() => restore.mutate(book.id)}>
+            <RotateCcw className="h-4 w-4" /> Put it back
+          </button>
+        </div>
+      )}
 
       {/* Hero */}
       <div className="flex flex-col gap-5 sm:flex-row">
@@ -212,7 +231,7 @@ export default function BookDetailPage() {
               </button>
             ))}
             {book.read_status === "read" && (
-              <button onClick={() => readAgain.mutate(book)} className="chip border-dashed">
+              <button onClick={() => readAgain.mutate(book, { onSuccess: () => toast.success("Re-reading — the new read is recorded when you finish") })} className="chip border-dashed">
                 <RotateCcw className="h-3.5 w-3.5" /> Read again
               </button>
             )}
@@ -245,13 +264,14 @@ export default function BookDetailPage() {
               <Pencil className="h-5 w-5" /> Edit
             </button>
             <button onClick={remove} className="btn-ghost text-riso-pink">
-              <Trash2 className="h-5 w-5" /> Delete
+              <Trash2 className="h-5 w-5" /> Remove
             </button>
           </div>
         </div>
       </div>
 
-      {/* Bookmark */}
+      {/* Bookmark — only while the book is in progress */}
+      {book.read_status !== "read" && (
       <section className="card p-5">
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-extrabold">
           <Bookmark className="h-5 w-5 text-riso-orange" /> Where you left off
@@ -310,6 +330,7 @@ export default function BookDetailPage() {
           </button>
         </div>
       </section>
+      )}
 
       {/* Metadata + classification */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -115,13 +115,39 @@ Suggestions only. For anything that changes how a page looks I'd make a mockup f
 
 ---
 
-## Decisions I need from you
+## Decisions (answered 2026-11-13)
 
-| # | Question | My pick |
-|---|----------|---------|
-| A | Re-read: should the book's main rating always follow the latest read (0.6)? | Yes |
-| B | Deleting a book: archive by default (0.9)? | Yes |
-| C | Offline: make writes work offline, or label it read-only (0.19)? | Label it read-only now, revisit later |
-| D | Cover photos need Supabase Storage switched on (free tier is enough). OK? | Yes |
-| E | Phase 4: mockups for navigation, book page tabs and spine view before building? | Yes |
-| F | Order after Phase 0: bulk cataloguing (1) before the reading loop (2)? | Yes, if you are still adding the collection |
+| # | Question | Answer |
+|---|----------|--------|
+| A | Book's main rating follows the latest read | **Yes** |
+| B | Deleting a book archives it by default, history kept | **Yes** |
+| C | Offline | **Read-only for now** |
+| D | Cover photos stored in Supabase Storage | **Yes** (with the cover-photo item, whenever that's built) |
+| E | Mockups before navigation / book-page tabs / spine view | **Yes** |
+| F | Bulk cataloguing (Phase 1) | **Not needed yet** — go to Phase 2 after Phase 0 |
+
+## Progress
+
+- **Phase 0 — done 2026-11-13.** Needs migration `0008_archive_and_positions.sql`.
+  How the fixes landed:
+  - Read-throughs are now the record of every read; the book's rating, review,
+    finish date and "times read" are a summary of them (latest read wins, falling
+    back to the most recent rated/reviewed read so an unrated re-read doesn't blank it).
+  - "Read again" starts a re-read (status Reading, fresh bookmark); the new read is
+    recorded when you mark it Read.
+  - Edit form has Started / Finished dates; an empty finish date on a Read book
+    means "don't remember when" and doesn't count toward any year.
+  - Ownership: the edit form can set Owned / Wishlist / Not on my shelf; Lent out and
+    Borrowed come only from the Lending section. A returned borrowed book becomes
+    "Not on my shelf" (new value, in 0008).
+  - Bookmark only moves back when the deleted/edited session was the latest one and
+    the bookmark is still where it left it.
+  - Kindle-location sessions count toward page goals and Wrapped pages using the
+    book's own ≈ pages ratio, or ~15 locations/page if that isn't filled in. Reading
+    *speed* stays print-only.
+  - Remove = archive with Undo; Settings → Removed books to put back or delete forever.
+  - Settings → Backup: export everything (JSON), library as CSV, restore (merge).
+- Phase 1 — skipped for now (decision F).
+- **Next: Phase 2.**
+- Phase 5 note: `eslint` reports 13 "setState inside an effect" style errors (mostly
+  older code). The build ignores them; tidy them in Phase 5.

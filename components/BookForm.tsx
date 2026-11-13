@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useCollections, useLocations } from "@/lib/queries";
+import { todayISO } from "@/lib/stats";
 import { locationOptions } from "@/lib/locations";
 import { BookCover } from "./BookCover";
 import { RatingStars } from "./RatingStars";
 import { TagPicker } from "./TagPicker";
 import { BookClassificationField } from "./BookClassificationField";
 import {
+  EDITABLE_OWNERSHIP,
   FORMAT_LABEL,
   OWNERSHIP_LABEL,
   READ_STATUS_LABEL,
@@ -60,6 +62,8 @@ export function BookForm({
 
   const set = <K extends keyof BookInput>(key: K, v: BookInput[K]) =>
     onChange({ ...value, [key]: v });
+
+  const onLoan = value.ownership === "lent_out" || value.ownership === "borrowed";
 
   const num = (s: string): number | null => (s.trim() === "" ? null : Number(s));
 
@@ -305,13 +309,19 @@ export function BookForm({
               className="select"
               value={value.ownership}
               onChange={(e) => set("ownership", e.target.value as Ownership)}
+              disabled={onLoan}
             >
-              {(Object.keys(OWNERSHIP_LABEL) as Ownership[]).map((o) => (
+              {(onLoan ? [value.ownership] : EDITABLE_OWNERSHIP).map((o) => (
                 <option key={o} value={o}>
                   {OWNERSHIP_LABEL[o]}
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-text-muted">
+              {onLoan
+                ? "Set by an open loan — close it in the book's Lending section."
+                : "Lending or borrowing? Use the Lending section on the book page."}
+            </p>
           </div>
           <div>
             <label className="label">Location</label>
@@ -394,6 +404,41 @@ export function BookForm({
             </div>
           </div>
         </div>
+        {(value.read_status === "reading" ||
+          value.read_status === "on_hold" ||
+          value.read_status === "abandoned" ||
+          value.read_status === "read") && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Started on</label>
+              <input
+                className="input"
+                type="date"
+                max={todayISO()}
+                value={value.started_on ?? ""}
+                onChange={(e) => set("started_on", e.target.value || null)}
+              />
+            </div>
+            {value.read_status === "read" && (
+              <div>
+                <label className="label">Finished on</label>
+                <input
+                  className="input"
+                  type="date"
+                  max={todayISO()}
+                  value={value.finished_on ?? ""}
+                  onChange={(e) => set("finished_on", e.target.value || null)}
+                />
+              </div>
+            )}
+            {value.read_status === "read" && (
+              <p className="col-span-2 -mt-1 text-xs text-text-muted">
+                Leave &ldquo;Finished on&rdquo; empty if you don&apos;t remember — the
+                book counts as read, just not toward any particular year.
+              </p>
+            )}
+          </div>
+        )}
         <div>
           <label className="label">Review / notes</label>
           <textarea

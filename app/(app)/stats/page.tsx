@@ -20,7 +20,7 @@ import { Flame, Zap, BookCheck, Layers, Sparkles } from "lucide-react";
 import { StreakHeatmap } from "@/components/StreakHeatmap";
 import { ProgressBar } from "@/components/ProgressBar";
 import { EmptyState } from "@/components/EmptyState";
-import { useBooks, useProfile, useSessions } from "@/lib/queries";
+import { useAllReadThroughs, useBooks, useProfile, useSessions } from "@/lib/queries";
 import {
   currentStreak,
   longestStreak,
@@ -29,6 +29,7 @@ import {
   readingSpeed,
   speedTrend,
   booksFinishedByMonth,
+  readsInYear,
   genreBreakdown,
   ratingDistribution,
   topAuthors,
@@ -55,13 +56,12 @@ const RANGES: { key: string; label: string; days: number; g: Granularity }[] = [
 export default function StatsPage() {
   const { data: books = [] } = useBooks();
   const { data: sessions = [] } = useSessions();
+  const { data: reads = [] } = useAllReadThroughs();
   const { data: profile } = useProfile();
   const [range, setRange] = useState(RANGES[1]);
 
   const year = new Date().getFullYear();
-  const booksThisYear = books.filter(
-    (b) => b.read_status === "read" && b.finished_on?.startsWith(String(year)),
-  ).length;
+  const booksThisYear = readsInYear(reads, year).length;
   const goal = profile?.goal_books_per_year ?? 24;
 
   const streak = currentStreak(sessions);
@@ -82,7 +82,7 @@ export default function StatsPage() {
   const avgPg = useMemo(() => avgSessionPages(sessions), [sessions]);
   const longestSesh = useMemo(() => longestSession(sessions), [sessions]);
   const hasAudio = useMemo(() => timeSeries.some((p) => p.audio > 0), [timeSeries]);
-  const finished = useMemo(() => booksFinishedByMonth(books), [books]);
+  const finished = useMemo(() => booksFinishedByMonth(reads), [reads]);
   const genres = useMemo(() => genreBreakdown(books).slice(0, 6), [books]);
   const ratings = useMemo(() => ratingDistribution(books), [books]);
   const authors = useMemo(() => topAuthors(books, 6), [books]);

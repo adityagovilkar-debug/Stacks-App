@@ -283,6 +283,13 @@ h1, h2, h3, h4, h5, h6 {
 .pop-sm { box-shadow: var(--shadow-riso-sm); }
 .outlined { border: 2.5px solid var(--outline); }
 
+/* While the library's share bar is up on a phone, it owns the bottom of the
+   screen: hide the floating Log button and lift the timer pill above it. */
+@media (max-width: 1023px) {
+  html[data-sharebar] .js-fab { display: none; }
+  html[data-sharebar] .js-timer { bottom: 10.5rem; }
+}
+
 /* Thin, unobtrusive scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
