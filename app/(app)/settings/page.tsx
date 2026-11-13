@@ -59,7 +59,7 @@ export default function SettingsPage() {
   const [theme, setThemeState] = useState<Theme>("light");
   const [size, setSizeState] = useState<TextSize>("normal");
   const [name, setName] = useState("");
-  const [goals, setGoals] = useState({ books: 24, pages: 25, minutes: 20 });
+  const [goals, setGoals] = useState({ books: 24, pages: 25, minutes: 20, rest: 0 });
 
   useEffect(() => {
     setThemeState(getTheme());
@@ -73,6 +73,7 @@ export default function SettingsPage() {
         books: profile.goal_books_per_year,
         pages: profile.goal_pages_per_day,
         minutes: profile.goal_minutes_per_day,
+        rest: profile.rest_days_per_week ?? 0,
       });
     }
   }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -91,6 +92,7 @@ export default function SettingsPage() {
         goal_books_per_year: goals.books,
         goal_pages_per_day: goals.pages,
         goal_minutes_per_day: goals.minutes,
+        rest_days_per_week: goals.rest,
       },
       { onSuccess: () => toast.success("Goals saved") },
     );
@@ -141,6 +143,27 @@ export default function SettingsPage() {
               onChange={(e) => setGoals({ ...goals, minutes: Number(e.target.value) })}
             />
           </div>
+        </div>
+        <div className="mt-4">
+          <div className="label">Rest days per week</div>
+          <div className="inline-flex rounded-xl border-2 border-outline bg-surface-2 p-1">
+            {[0, 1, 2, 3].map((n) => (
+              <button
+                key={n}
+                onClick={() => setGoals({ ...goals, rest: n })}
+                className={cn(
+                  "rounded-lg px-4 py-2 font-bold transition",
+                  goals.rest === n ? "bg-riso-blue text-white" : "text-text-muted",
+                )}
+              >
+                {n === 0 ? "None" : n}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-text-muted">
+            Skip this many days a week (Mon–Sun) without breaking your streak.
+            Rest days don&apos;t add to it.
+          </p>
         </div>
         <button className="btn-primary mt-4" onClick={saveGoals}>
           Save goals

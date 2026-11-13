@@ -60,3 +60,14 @@ export function openCommand() {
 export function startTimer(book: { id: string; title: string }) {
   window.dispatchEvent(new CustomEvent<TimerDetail>(TIMER_EVENT, { detail: { book } }));
 }
+
+// Finish sheet: finish date, rating, a line of review, favourite, what next.
+export const FINISH_BOOK_EVENT = "stacks:finish-book";
+export interface FinishBookDetail {
+  book: Book;
+}
+export function openFinishBook(book: Book) {
+  window.dispatchEvent(
+    new CustomEvent<FinishBookDetail>(FINISH_BOOK_EVENT, { detail: { book } }),
+  );
+}

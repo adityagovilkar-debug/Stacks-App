@@ -18,6 +18,8 @@ import {
   Search,
   Timer as TimerIcon,
   Square,
+  Pause,
+  Play,
   Layers,
   HandHelping,
   Dice5,
@@ -27,13 +29,16 @@ import type { LucideIcon } from "lucide-react";
 import { LogSessionDialog } from "./LogSessionDialog";
 import { EditBookDialog } from "./EditBookDialog";
 import { CommandPalette } from "./CommandPalette";
+import { FinishBookDialog } from "./FinishBookDialog";
 import {
   EDIT_BOOK_EVENT,
+  FINISH_BOOK_EVENT,
   LOG_SESSION_EVENT,
   TIMER_EVENT,
   openLogSession,
   openCommand,
   type EditBookDetail,
+  type FinishBookDetail,
   type EditableSession,
   type LogSessionDetail,
   type TimerDetail,
@@ -42,6 +47,15 @@ import { useProfile, useUpdateProfile } from "@/lib/queries";
 import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import type { Book } from "@/lib/types";
+
+interface Timer {
+  id: string;
+  title: string;
+  startedAt: number; // start of the current running stretch
+  bankedMs: number; // time from earlier stretches (before pauses)
+  paused: boolean;
+}
+const timerElapsed = (t: Timer) => t.bankedMs + (t.paused ? 0 : Date.now() - t.startedAt);
 
 interface NavItem {
   href: string;
@@ -79,8 +93,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [editOpen, setEditOpen] = useState(false);
   const [editBook, setEditBook] = useState<Book | undefined>(undefined);
 
-  // Reading timer (persisted so it survives reloads / navigation).
-  const [timer, setTimer] = useState<{ id: string; title: string; startedAt: number } | null>(null);
+  // Reading timer (persisted so it survives reloads / navigation). Time
+  // already banked before a pause lives in `bankedMs`; while running,
+  // `startedAt` marks the start of the current stretch.
+  const [timer, setTimer] = useState<Timer | null>(null);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [finishBook, setFinishBook] = useState<Book | undefined>(undefined);
   const timerRef = useRef<typeof timer>(null);
   const [, setTick] = useState(0);
 
@@ -96,11 +114,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setEditBook((e as CustomEvent<EditBookDetail>).detail?.book);
       setEditOpen(true);
     }
+    function onFinish(e: Event) {
+      setFinishBook((e as CustomEvent<FinishBookDetail>).detail.book);
+      setFinishOpen(true);
+    }
     window.addEventListener(LOG_SESSION_EVENT, onLog);
     window.addEventListener(EDIT_BOOK_EVENT, onEdit);
+    window.addEventListener(FINISH_BOOK_EVENT, onFinish);
     return () => {
       window.removeEventListener(LOG_SESSION_EVENT, onLog);
       window.removeEventListener(EDIT_BOOK_EVENT, onEdit);
+      window.removeEventListener(FINISH_BOOK_EVENT, onFinish);
     };
   }, []);
 
@@ -108,7 +132,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const raw = localStorage.getItem("stacks-timer");
-      if (raw) setTimer(JSON.parse(raw));
+      if (raw) {
+        const saved = JSON.parse(raw);
+        setTimer({ bankedMs: 0, paused: false, ...saved });
+      }
     } catch {}
     function onTimer(e: Event) {
       const b = (e as CustomEvent<TimerDetail>).detail.book;
@@ -116,18 +143,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const current = timerRef.current;
       if (current && current.id === b.id) return; // already timing this book
       if (current) {
-        const mins = Math.max(1, Math.round((Date.now() - current.startedAt) / 60000));
+        const mins = Math.max(1, Math.round(timerElapsed(current) / 60000));
         const ok = window.confirm(
           `A timer for “${current.title}” has been running for ${mins} min. ` +
             `Discard it and start a new timer for “${b.title}”?`,
         );
         if (!ok) return;
       }
-      const t = { id: b.id, title: b.title, startedAt: Date.now() };
-      try {
-        localStorage.setItem("stacks-timer", JSON.stringify(t));
-      } catch {}
-      setTimer(t);
+      saveTimer({ id: b.id, title: b.title, startedAt: Date.now(), bankedMs: 0, paused: false });
     }
     window.addEventListener(TIMER_EVENT, onTimer);
     return () => window.removeEventListener(TIMER_EVENT, onTimer);
@@ -154,22 +177,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Tick the elapsed display once a second while a timer runs.
   useEffect(() => {
-    if (!timer) return;
+    if (!timer || timer.paused) return;
     const i = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(i);
   }, [timer]);
 
-  function clearTimer() {
-    setTimer(null);
+  function saveTimer(t: Timer | null) {
+    setTimer(t);
     try {
-      localStorage.removeItem("stacks-timer");
+      if (t) localStorage.setItem("stacks-timer", JSON.stringify(t));
+      else localStorage.removeItem("stacks-timer");
     } catch {}
+  }
+  function clearTimer() {
+    saveTimer(null);
+  }
+  function togglePause() {
+    if (!timer) return;
+    if (timer.paused) saveTimer({ ...timer, paused: false, startedAt: Date.now() });
+    else
+      saveTimer({
+        ...timer,
+        paused: true,
+        bankedMs: timer.bankedMs + (Date.now() - timer.startedAt),
+      });
   }
   function stopTimer() {
     if (!timer) return;
-    const mins = Math.max(1, Math.round((Date.now() - timer.startedAt) / 60000));
+    const mins = Math.max(1, Math.round(timerElapsed(timer) / 60000));
     const book = { id: timer.id, title: timer.title };
     clearTimer();
+    // The log sheet opens with the minutes filled and the page field focused.
     openLogSession(book, mins);
   }
 
@@ -184,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const elapsedMs = timer ? Date.now() - timer.startedAt : 0;
+  const elapsedMs = timer ? timerElapsed(timer) : 0;
   const elapsed = `${Math.floor(elapsedMs / 60000)}:${String(
     Math.floor((elapsedMs % 60000) / 1000),
   ).padStart(2, "0")}`;
@@ -328,7 +366,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {timer && (
         <div className="js-timer fixed bottom-24 left-4 z-40 flex items-center gap-2 rounded-full border-[2.5px] border-outline bg-riso-yellow px-3 py-1.5 text-[#1a1430] pop lg:bottom-6">
           <TimerIcon className="h-4 w-4" />
-          <span className="font-display text-sm font-extrabold tabular-nums">{elapsed}</span>
+          <span className={cn("font-display text-sm font-extrabold tabular-nums", timer.paused && "opacity-60")}>
+            {elapsed}
+            {timer.paused ? " · paused" : ""}
+          </span>
+          <button
+            onClick={togglePause}
+            aria-label={timer.paused ? "Resume timer" : "Pause timer"}
+            className="rounded-full border-2 border-outline bg-surface/70 p-1 text-[#1a1430]"
+          >
+            {timer.paused ? <Play className="h-3 w-3 fill-current" /> : <Pause className="h-3 w-3 fill-current" />}
+          </button>
           <span className="hidden max-w-[120px] truncate text-xs font-bold sm:inline">
             {timer.title}
           </span>
@@ -359,6 +407,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         open={editOpen}
         book={editBook}
         onClose={() => setEditOpen(false)}
+      />
+      <FinishBookDialog
+        open={finishOpen}
+        book={finishBook}
+        onClose={() => setFinishOpen(false)}
       />
       <CommandPalette />
     </div>

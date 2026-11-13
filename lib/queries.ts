@@ -10,6 +10,7 @@ import { todayISO } from "@/lib/stats";
 import { uniqueAuthors } from "@/lib/utils";
 import type {
   Book,
+  BookNote,
   BookInput,
   Collection,
   Loan,
@@ -632,10 +633,14 @@ export function useSetReadStatus() {
       book,
       status,
       finishedOn,
+      rating,
+      review,
     }: {
       book: Book;
       status: ReadStatus;
       finishedOn?: string | null; // when marking Read; defaults to today
+      rating?: number | null; // from the finish sheet: this read's own rating
+      review?: string | null; // … and its own line of review
     }) => {
       if (status === book.read_status) return;
       const patch: Partial<Book> = { read_status: status };
@@ -653,8 +658,8 @@ export function useSetReadStatus() {
         await recordRead(book.id, {
           started_on: book.started_on,
           finished_on: finishedOn === undefined ? today : finishedOn,
-          rating: first ? book.rating : null,
-          review: first ? book.review : null,
+          rating: rating !== undefined ? rating : first ? book.rating : null,
+          review: review !== undefined ? review : first ? book.review : null,
         });
       }
     },
@@ -1338,5 +1343,76 @@ export function useDeleteReadThrough() {
       return book_id;
     },
     onSuccess: (bookId) => invalidateBooks(qc, bookId),
+  });
+}
+
+// =====================================================================
+// Notes while reading
+// =====================================================================
+export function useBookNotes(bookId: string | undefined) {
+  return useQuery({
+    enabled: !!bookId,
+    queryKey: ["book-notes", bookId],
+    queryFn: async (): Promise<BookNote[]> => {
+      const { data, error } = await sb()
+        .from("book_notes")
+        .select("*")
+        .eq("book_id", bookId!)
+        .order("noted_on", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as BookNote[];
+    },
+  });
+}
+
+export function useAddBookNotes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      notes: { book_id: string; body: string; page: number | null; noted_on?: string; created_at?: string }[],
+    ) => {
+      if (!notes.length) return;
+      const user_id = await uid();
+      const { error } = await sb()
+        .from("book_notes")
+        .insert(notes.map((n) => ({ ...n, user_id })));
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["book-notes"] }),
+  });
+}
+
+export function useDeleteBookNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb().from("book_notes").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["book-notes"] }),
+  });
+}
+
+// Bulk-add quotes (Kindle highlights import).
+export function useAddQuotes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      rows: { book_id: string; text: string; page: number | null; note: string | null; created_at?: string }[],
+    ) => {
+      if (!rows.length) return;
+      const user_id = await uid();
+      for (let i = 0; i < rows.length; i += 500) {
+        const { error } = await sb()
+          .from("quotes")
+          .insert(rows.slice(i, i + 500).map((r) => ({ ...r, user_id })));
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["quotes"] });
+      qc.invalidateQueries({ queryKey: ["book-quotes"] });
+    },
   });
 }

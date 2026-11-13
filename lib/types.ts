@@ -24,6 +24,7 @@ export interface Profile {
   goal_books_per_year: number;
   goal_pages_per_day: number;
   goal_minutes_per_day: number;
+  rest_days_per_week?: number; // streak-forgiving rest days (migration 0009)
   created_at: string;
 }
 
@@ -184,6 +185,17 @@ export interface Quote {
   created_at: string;
   // joined
   book?: Pick<Book, "id" | "title" | "authors" | "cover_url">;
+}
+
+// A dated note made while reading (separate from the final review).
+export interface BookNote {
+  id: string;
+  user_id: string;
+  book_id: string;
+  body: string;
+  page: number | null;
+  noted_on: string; // YYYY-MM-DD
+  created_at: string;
 }
 
 export interface QuoteInput {

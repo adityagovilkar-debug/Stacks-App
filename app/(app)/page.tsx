@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { ProgressBar } from "@/components/ProgressBar";
+import { QuickLog } from "@/components/QuickLog";
 import { StatusStamp } from "@/components/StatusStamp";
 import { SkeletonList } from "@/components/Skeleton";
 import { EmptyState } from "@/components/EmptyState";
@@ -52,7 +53,7 @@ export default function DashboardPage() {
   const today = todayISO();
   const pagesToday = pagesOn(today, sessions);
   const minsToday = minutesOn(today, sessions);
-  const streak = currentStreak(sessions);
+  const streak = currentStreak(sessions, profile?.rest_days_per_week ?? 0);
   const goalPages = profile?.goal_pages_per_day ?? 25;
   const goalMinutes = profile?.goal_minutes_per_day ?? 20;
   // Hitting either goal counts — a day of audiobook listening logs 0 pages
@@ -311,6 +312,7 @@ function ReadingRow({ book, sessions }: { book: Book; sessions: ReadingSession[]
             <StatusStamp status="reading" />
           </div>
         )}
+        <QuickLog book={book} />
       </div>
       <div className="flex shrink-0 flex-col gap-1">
         <button

@@ -6,7 +6,7 @@ import { Flame, BookOpen, NotebookPen, Trash2, Pencil } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { EmptyState } from "@/components/EmptyState";
 import { SkeletonList } from "@/components/Skeleton";
-import { useSessions, useDeleteSession } from "@/lib/queries";
+import { useSessions, useDeleteSession, useProfile } from "@/lib/queries";
 import { openLogSession, openEditSession } from "@/lib/events";
 import { currentStreak, totalPages } from "@/lib/stats";
 import { format, parseISO, isToday, isYesterday } from "date-fns";
@@ -22,7 +22,9 @@ export default function LogPage() {
   const { data: sessions = [], isLoading } = useSessions();
   const del = useDeleteSession();
 
-  const streak = useMemo(() => currentStreak(sessions), [sessions]);
+  const { data: profile } = useProfile();
+  const restDays = profile?.rest_days_per_week ?? 0;
+  const streak = useMemo(() => currentStreak(sessions, restDays), [sessions, restDays]);
   const grouped = useMemo(() => {
     const map = new Map<string, typeof sessions>();
     for (const s of sessions) {

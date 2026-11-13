@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Quote as QuoteIcon, Plus, Trash2 } from "lucide-react";
 import { useBookQuotes, useAddQuote, useDeleteQuote } from "@/lib/queries";
+import { PhotoQuote } from "./PhotoQuote";
 
 // Capture + show favourite passages for a book (a little commonplace book).
 export function QuotesSection({ bookId }: { bookId: string }) {
@@ -48,6 +49,7 @@ export function QuotesSection({ bookId }: { bookId: string }) {
 
       {adding && (
         <div className="mb-4 space-y-2 rounded-xl border-2 border-outline bg-surface-2 p-3">
+          <PhotoQuote onPick={(t) => setText((cur) => (cur ? cur + " " + t : t))} />
           <textarea
             className="textarea"
             rows={3}
@@ -98,9 +100,11 @@ export function QuotesSection({ bookId }: { bookId: string }) {
               <p className="font-display text-[0.95rem] italic leading-snug">
                 “{q.text}”
               </p>
-              {q.page != null && (
+              {(q.page != null || q.note) && (
                 <p className="mt-1 text-xs font-semibold text-text-muted">
-                  p. {q.page}
+                  {q.page != null ? `p. ${q.page}` : ""}
+                  {q.page != null && q.note ? " · " : ""}
+                  {q.note ?? ""}
                 </p>
               )}
               <button

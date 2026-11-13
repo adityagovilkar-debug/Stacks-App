@@ -148,6 +148,22 @@ Suggestions only. For anything that changes how a page looks I'd make a mockup f
   - Remove = archive with Undo; Settings → Removed books to put back or delete forever.
   - Settings → Backup: export everything (JSON), library as CSV, restore (merge).
 - Phase 1 — skipped for now (decision F).
-- **Next: Phase 2.**
+- **Phase 2 — done 2026-11-13.** Needs migration `0009_notes_and_rest_days.sql`.
+  - One-tap log on each dashboard reading card ("Now on page" + ✓); reaching the last
+    page opens the finish sheet.
+  - Timer pauses/resumes (survives reloads); Stop & log focuses the page field.
+  - Finish sheet (finish date or "don't remember", rating, a line, favourite, then
+    top-of-queue / Surprise me). Opened by the Read button and by logging the last page.
+  - Time-left uses the book's own pace after 3 timed sessions ("at this book's pace").
+  - Kindle `My Clippings.txt` import on the Commonplace book page: highlights → quotes,
+    notes → the book's reading history; extended highlights de-duplicated; re-import safe.
+  - Quote from a photo: tesseract.js in the browser (loaded on first use from jsDelivr;
+    photo never uploaded). Tap lines to keep.
+  - Notes while reading: `book_notes`, shown in the book's Reading history timeline.
+  - Progress page: Daily goals card (pages + minutes, month calendar of goal days).
+  - Rest days per week (0–3) in Settings → Reading goals; streaks honour them.
+  - Tests: parser / streak / pace checks run from a scratch script (18 pass); move
+    into a real test suite in Phase 5.
+- **Next: Phase 3** (library depth), or Phase 4 UI mockups — his call.
 - Phase 5 note: `eslint` reports 13 "setState inside an effect" style errors (mostly
   older code). The build ignores them; tidy them in Phase 5.

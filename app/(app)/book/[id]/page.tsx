@@ -27,7 +27,6 @@ import {
   useBookSessions,
   useArchiveBook,
   useRestoreBook,
-  useDeleteSession,
   useLocations,
   usePatchBook,
   useReadAgain,
@@ -37,7 +36,7 @@ import {
   useRemoveFromQueue,
 } from "@/lib/queries";
 import { buildPathMap } from "@/lib/locations";
-import { openEditBook, openEditSession, openLogSession, startTimer } from "@/lib/events";
+import { openEditBook, openFinishBook, openLogSession, startTimer } from "@/lib/events";
 import {
   readingProgress,
   estimateTimeLeft,
@@ -48,6 +47,7 @@ import {
 import { QuotesSection } from "@/components/QuotesSection";
 import { ReadThroughsSection } from "@/components/ReadThroughsSection";
 import { LoanSection } from "@/components/LoanSection";
+import { ReadingHistory } from "@/components/ReadingHistory";
 import {
   FORMAT_LABEL,
   OWNERSHIP_LABEL,
@@ -73,7 +73,6 @@ export default function BookDetailPage() {
   const restore = useRestoreBook();
   const addQ = useAddToQueue();
   const removeQ = useRemoveFromQueue();
-  const delSession = useDeleteSession();
 
   const [bookmark, setBookmark] = useState("");
   const [review, setReview] = useState("");
@@ -221,7 +220,9 @@ export default function BookDetailPage() {
             {(Object.keys(READ_STATUS_LABEL) as ReadStatus[]).map((s) => (
               <button
                 key={s}
-                onClick={() => setStatus.mutate({ book, status: s })}
+                onClick={() =>
+                  s === "read" ? openFinishBook(book) : setStatus.mutate({ book, status: s })
+                }
                 className={cn(
                   "chip",
                   book.read_status === s ? "bg-riso-blue text-white" : "",
@@ -294,6 +295,7 @@ export default function BookDetailPage() {
             {estimate.minutesLeft != null
               ? `≈ ${fmtDuration(estimate.minutesLeft)} left`
               : `${estimate.unitsLeft.toLocaleString()} ${loc ? "locations" : "pages"} left`}
+            {estimate.minutesLeft != null && estimate.paceFrom === "book" ? " at this book’s pace" : ""}
             {estimate.daysLeft
               ? ` · about ${estimate.daysLeft} ${estimate.daysLeft === 1 ? "sitting" : "sittings"} at your pace`
               : ""}
@@ -437,79 +439,8 @@ export default function BookDetailPage() {
       {/* Quotes / highlights */}
       <QuotesSection bookId={book.id} />
 
-      {/* Reading sessions */}
-      <section className="card p-5">
-        <h2 className="mb-3 font-display text-lg font-extrabold">Reading history</h2>
-        {sessions.length === 0 ? (
-          <p className="text-sm text-text-muted">
-            No sessions yet. Hit “Log reading” to start tracking your progress.
-          </p>
-        ) : (
-          <ul className="divide-y-2 divide-border">
-            {sessions.map((s) => (
-              <li key={s.id} className="flex items-center gap-3 py-2.5">
-                <div className="flex-1">
-                  <p className="text-sm font-bold">
-                    {format(parseISO(s.happened_on), "EEE, d MMM yyyy")}
-                    <span className="font-normal text-text-muted">
-                      {" · logged "}
-                      {format(parseISO(s.created_at), "h:mm a")}
-                    </span>
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {audio
-                      ? `🎧 ${s.minutes ?? 0} min listened`
-                      : loc
-                        ? `📖 ${(s.locations_read ?? 0).toLocaleString()} locations${s.minutes ? ` · ${s.minutes} min` : ""}`
-                        : `${s.pages_read} pages${s.minutes ? ` · ${s.minutes} min` : ""}${
-                            s.minutes && s.pages_read
-                              ? ` · ~${Math.round((s.pages_read / s.minutes) * 60)} pp/hr`
-                              : ""
-                          }`}
-                    {s.note ? ` · “${s.note}”` : ""}
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    openEditSession({
-                      id: s.id,
-                      book_id: s.book_id,
-                      book_title: book!.title,
-                      happened_on: s.happened_on,
-                      pages_read: s.pages_read,
-                      minutes: s.minutes,
-                      end_page: s.end_page,
-                      locations_read: s.locations_read,
-                      end_location: s.end_location,
-                      note: s.note,
-                    })
-                  }
-                  aria-label="Edit session"
-                  className="rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-blue"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => delSession.mutate(s.id)}
-                  aria-label="Delete session"
-                  className="rounded-lg p-1.5 text-text-muted hover:bg-surface-2 hover:text-riso-pink"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-          <Clock className="h-3.5 w-3.5" />
-          {audio
-            ? `${sessions.reduce((n, s) => n + (s.minutes || 0), 0)} minutes logged across `
-            : loc
-              ? `${sessions.reduce((n, s) => n + (s.locations_read || 0), 0).toLocaleString()} locations logged across `
-              : `${sessions.reduce((n, s) => n + s.pages_read, 0)} pages logged across `}
-          {sessions.length} sessions
-        </p>
-      </section>
+      {/* Reading history: sessions + notes while reading */}
+      <ReadingHistory book={book} sessions={sessions} />
     </div>
   );
 }

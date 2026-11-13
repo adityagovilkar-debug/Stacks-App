@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Quote as QuoteIcon, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
+import { KindleImport } from "@/components/KindleImport";
 import { SkeletonList } from "@/components/Skeleton";
 import { useQuotes, useDeleteQuote } from "@/lib/queries";
 
@@ -13,11 +14,14 @@ export default function QuotesPage() {
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="font-display text-3xl font-extrabold misreg">Commonplace book</h1>
-        <p className="mt-1 text-text-muted">
-          Every line you&apos;ve thought worth keeping.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-extrabold misreg">Commonplace book</h1>
+          <p className="mt-1 text-text-muted">
+            Every line you&apos;ve thought worth keeping.
+          </p>
+        </div>
+        <KindleImport />
       </header>
 
       {isLoading ? (
@@ -47,7 +51,7 @@ export default function QuotesPage() {
                   className="min-w-0 text-xs font-semibold text-text-muted hover:text-text"
                 >
                   <span className="truncate">— {q.book?.title ?? "Book"}</span>
-                  {q.page ? `, p. ${q.page}` : ""}
+                  {q.page ? `, p. ${q.page}` : q.note ? ` · ${q.note}` : ""}
                 </Link>
                 <button
                   onClick={() => del.mutate(q.id)}

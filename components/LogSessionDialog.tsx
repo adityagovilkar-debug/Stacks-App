@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Dialog } from "./Dialog";
 import { useBooks, useLogSession, useUpdateSession } from "@/lib/queries";
 import { todayISO } from "@/lib/stats";
-import type { EditableSession, LogSessionDetail } from "@/lib/events";
+import { openFinishBook, type EditableSession, type LogSessionDetail } from "@/lib/events";
 
 export function LogSessionDialog({
   open,
@@ -157,6 +157,15 @@ export function LogSessionDialog({
       });
       toast.success("Logged! Keep the streak going 🔥");
       onClose();
+      // Reached the end? Go straight to the finish sheet.
+      if (selected && selected.read_status !== "read") {
+        const reached = isAudio
+          ? !!selected.duration_minutes && Number(endPos) >= selected.duration_minutes
+          : isLocation
+            ? !!selected.total_locations && Number(endLoc) >= selected.total_locations
+            : !!selected.page_count && Number(endPage) >= selected.page_count;
+        if (reached) openFinishBook(selected);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't log that");
     }
@@ -253,6 +262,7 @@ export function LogSessionDialog({
                     inputMode="numeric"
                     value={endPos}
                     onChange={(e) => onEndPos(e.target.value)}
+                    autoFocus={!!initialMinutes && !isEditing}
                     placeholder={
                       selected?.audio_position_minutes
                         ? `was ${selected.audio_position_minutes}`
@@ -295,6 +305,7 @@ export function LogSessionDialog({
                     inputMode="numeric"
                     value={endLoc}
                     onChange={(e) => onEndLoc(e.target.value)}
+                    autoFocus={!!initialMinutes && !isEditing}
                     placeholder={
                       selected?.current_location
                         ? `was ${selected.current_location}`
@@ -336,6 +347,7 @@ export function LogSessionDialog({
                   inputMode="numeric"
                   value={endPage}
                   onChange={(e) => onEndPage(e.target.value)}
+                    autoFocus={!!initialMinutes && !isEditing}
                   placeholder={
                     selected?.current_page
                       ? `was ${selected.current_page}`

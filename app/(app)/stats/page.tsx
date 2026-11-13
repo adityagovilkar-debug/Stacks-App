@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { Flame, Zap, BookCheck, Layers, Sparkles } from "lucide-react";
 import { StreakHeatmap } from "@/components/StreakHeatmap";
+import { DailyGoals } from "@/components/DailyGoals";
 import { ProgressBar } from "@/components/ProgressBar";
 import { EmptyState } from "@/components/EmptyState";
 import { useAllReadThroughs, useBooks, useProfile, useSessions } from "@/lib/queries";
@@ -64,8 +65,9 @@ export default function StatsPage() {
   const booksThisYear = readsInYear(reads, year).length;
   const goal = profile?.goal_books_per_year ?? 24;
 
-  const streak = currentStreak(sessions);
-  const longest = longestStreak(sessions);
+  const restDays = profile?.rest_days_per_week ?? 0;
+  const streak = currentStreak(sessions, restDays);
+  const longest = longestStreak(sessions, restDays);
   const speed = readingSpeed(sessions);
 
   const pagesSeries = useMemo(
@@ -112,6 +114,14 @@ export default function StatsPage() {
         <StatCard icon={<Zap className="h-5 w-5 text-riso-pink" />} value={speed ? `${Math.round(speed)}` : "—"} label="pages/hour" sub="avg speed" />
         <StatCard icon={<Layers className="h-5 w-5 text-riso-purple" />} value={`${totalPages(sessions)}`} label="pages logged" sub={`${Math.round(totalMins / 60)} hrs`} />
       </div>
+
+      {/* Daily goals + this month */}
+      <DailyGoals
+        sessions={sessions}
+        goalPages={profile?.goal_pages_per_day ?? 25}
+        goalMinutes={profile?.goal_minutes_per_day ?? 20}
+        restDays={restDays}
+      />
 
       {/* Year goal */}
       <section className="card p-5">

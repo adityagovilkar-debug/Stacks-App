@@ -23,33 +23,100 @@ export function readDays(sessions: ReadingSession[]): Set<string> {
   return new Set(sessions.map((s) => s.happened_on));
 }
 
-// Consecutive days (ending today, or yesterday if you haven't logged today
-// yet) on which at least one session exists.
-export function currentStreak(sessions: ReadingSession[], today = new Date()): number {
+const weekKey = (d: Date) => ISO(startOfWeek(d, { weekStartsOn: 1 }));
+
+// Reading days in a row, ending today (today doesn't count against you until
+// it's over). With `restDays` > 0, up to that many missed days per week
+// (Mon–Sun) are forgiven: they don't break the streak, and don't add to it.
+export function currentStreak(
+  sessions: ReadingSession[],
+  restDays = 0,
+  today = new Date(),
+): number {
   const days = readDays(sessions);
-  let cursor = today;
-  if (!days.has(ISO(cursor))) cursor = subDays(cursor, 1);
+  if (!days.size) return 0;
+  const first = [...days].sort()[0];
+  const missesByWeek = new Map<string, number>();
   let streak = 0;
-  while (days.has(ISO(cursor))) {
-    streak++;
-    cursor = subDays(cursor, 1);
+  let cursor = today;
+  for (let i = 0; i < 4000; i++, cursor = subDays(cursor, 1)) {
+    const key = ISO(cursor);
+    if (key < first) break;
+    if (days.has(key)) {
+      streak++;
+      continue;
+    }
+    if (i === 0) continue; // today isn't over yet
+    const wk = weekKey(cursor);
+    const used = missesByWeek.get(wk) ?? 0;
+    if (used < restDays) {
+      missesByWeek.set(wk, used + 1);
+      continue;
+    }
+    break;
   }
   return streak;
 }
 
-export function longestStreak(sessions: ReadingSession[]): number {
-  const days = [...readDays(sessions)].sort();
+export function longestStreak(sessions: ReadingSession[], restDays = 0): number {
+  const sorted = [...readDays(sessions)].sort();
+  if (!sorted.length) return 0;
+  const days = new Set(sorted);
   let best = 0;
   let run = 0;
-  let prev: Date | null = null;
-  for (const d of days) {
-    const cur = parseISO(d);
-    if (prev && differenceInCalendarDays(cur, prev) === 1) run++;
-    else run = 1;
-    best = Math.max(best, run);
-    prev = cur;
+  let missesByWeek = new Map<string, number>();
+  const end = parseISO(sorted[sorted.length - 1]);
+  for (let d = parseISO(sorted[0]); d <= end; d = addDays(d, 1)) {
+    if (days.has(ISO(d))) {
+      run++;
+      best = Math.max(best, run);
+      continue;
+    }
+    const wk = weekKey(d);
+    const used = missesByWeek.get(wk) ?? 0;
+    if (used < restDays) {
+      missesByWeek.set(wk, used + 1);
+      continue;
+    }
+    run = 0;
+    missesByWeek = new Map();
   }
   return best;
+}
+
+// --- Daily goals -------------------------------------------------------------
+// A day "hits" the goal if either the pages goal or the minutes goal is met.
+export function goalHitOn(
+  dateISO: string,
+  sessions: ReadingSession[],
+  goalPages: number,
+  goalMinutes: number,
+): boolean {
+  const p = pagesOn(dateISO, sessions);
+  const m = minutesOn(dateISO, sessions);
+  return (goalPages > 0 && p >= goalPages) || (goalMinutes > 0 && m >= goalMinutes);
+}
+
+// Every day of the current month so far, with whether the goal was hit.
+export function monthGoalDays(
+  sessions: ReadingSession[],
+  goalPages: number,
+  goalMinutes: number,
+  today = new Date(),
+): { date: string; day: number; hit: boolean; read: boolean; future: boolean }[] {
+  const start = startOfMonth(today);
+  const out = [];
+  for (let d = start; d.getMonth() === start.getMonth(); d = addDays(d, 1)) {
+    const key = ISO(d);
+    out.push({
+      date: key,
+      day: d.getDate(),
+      hit: goalHitOn(key, sessions, goalPages, goalMinutes),
+      read: sessions.some((s) => s.happened_on === key),
+      future: key > ISO(today),
+    });
+  }
+  return out;
 }
 
 // --- Daily totals ----------------------------------------------------------
@@ -330,7 +397,11 @@ export interface FinishEstimate {
   daysLeft: number | null; // sittings at your recent daily pace (books only)
   unitsLeft: number; // pages or minutes remaining
   isAudio: boolean;
+  paceFrom?: "book" | "overall"; // whose speed the time estimate used
 }
+
+// A book's own pace kicks in once it has this many timed sessions.
+const OWN_PACE_MIN_SESSIONS = 3;
 
 // Estimate how much is left to finish a book the user is reading.
 export function estimateTimeLeft(
@@ -347,19 +418,41 @@ export function estimateTimeLeft(
     const locsLeft = Math.max(0, book.total_locations - (book.current_location ?? 0));
     if (locsLeft === 0)
       return { minutesLeft: 0, daysLeft: 0, unitsLeft: 0, isAudio: false };
-    const speed = locationSpeed(sessions); // locations/hr
+    const own = sessions.filter(
+      (s) => s.book_id === book.id && (s.minutes ?? 0) > 0 && (s.locations_read ?? 0) > 0,
+    );
+    const useOwn = own.length >= OWN_PACE_MIN_SESSIONS;
+    const speed = locationSpeed(useOwn ? own : sessions); // locations/hr
     const minutesLeft = speed ? Math.round((locsLeft / speed) * 60) : null;
-    return { minutesLeft, daysLeft: null, unitsLeft: locsLeft, isAudio: false };
+    return {
+      minutesLeft,
+      daysLeft: null,
+      unitsLeft: locsLeft,
+      isAudio: false,
+      paceFrom: useOwn ? "book" : "overall",
+    };
   }
   if (!book.page_count) return null;
   const pagesLeft = Math.max(0, book.page_count - (book.current_page ?? 0));
   if (pagesLeft === 0)
     return { minutesLeft: 0, daysLeft: 0, unitsLeft: 0, isAudio: false };
-  const speed = readingSpeed(sessions); // pages/hr
+  // A dense book and a thriller don't read at the same speed: once this book
+  // has a few timed sessions, use its own pace.
+  const own = sessions.filter(
+    (s) => s.book_id === book.id && (s.minutes ?? 0) > 0 && s.pages_read > 0,
+  );
+  const useOwn = own.length >= OWN_PACE_MIN_SESSIONS;
+  const speed = readingSpeed(useOwn ? own : sessions); // pages/hr
   const minutesLeft = speed ? Math.round((pagesLeft / speed) * 60) : null;
   const perDay = avgPagesPerActiveDay(sessions);
   const daysLeft = perDay ? Math.ceil(pagesLeft / perDay) : null;
-  return { minutesLeft, daysLeft, unitsLeft: pagesLeft, isAudio: false };
+  return {
+    minutesLeft,
+    daysLeft,
+    unitsLeft: pagesLeft,
+    isAudio: false,
+    paceFrom: useOwn ? "book" : "overall",
+  };
 }
 
 // Friendly duration: "3h 12m" / "45m" / "2h".
